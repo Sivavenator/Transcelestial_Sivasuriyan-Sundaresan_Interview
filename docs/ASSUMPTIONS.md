@@ -209,6 +209,26 @@ per axis), and its exact peak-to-peak meaning is angle-dependent.**
   "gradient_frac" alone doesn't fully pin down the peak-to-peak spread once
   the angle stops being axis-aligned.
 
+**PLANNED, not yet built: robustness/stress-testing against the background
+gradient will deliberately cover the worst-case angle (45°), not randomise
+the gradient per trial.**
+- Why not randomise: for the core bias-vs-SNR characterization (§2c of the
+  brief), the gradient must stay fixed within a run — letting it vary
+  randomly trial to trial would confound the thing actually being measured
+  (is a bias shift from SNR changing, or from a lucky/unlucky gradient draw
+  that trial?). For a dedicated robustness experiment, full randomisation
+  also blurs results into one averaged number and can hide exactly which
+  condition is worst.
+- Why 45° specifically, and why that's *better* than random: we don't have
+  to guess which angle is adversarial — the Cauchy-Schwarz derivation above
+  already proves 45° is mathematically the worst-case orientation for
+  peak-to-peak spread (`|cos(theta)| + |sin(theta)|` is maximised there). A
+  stress test built around a derived worst case is more defensible than one
+  built around random sampling that might simply miss it. Plan: sweep a
+  small set of representative angles (0°, 45°, 90°) rather than either a
+  single fixed angle or full randomisation, once estimators exist to test
+  against.
+
 **Background is treated as a *mean* contribution, summed with the spot's
 mean image and run through one shared `add_photon_noise` call — not drawn
 as its own independent noise source, unlike dark current.**
