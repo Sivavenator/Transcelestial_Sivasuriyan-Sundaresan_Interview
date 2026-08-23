@@ -1,9 +1,9 @@
 """Experiment 01 -- Monte Carlo characterization: bias and std vs SNR,
-both estimators, compared against the Cramer-Rao bound.
+all three estimators, compared against the Cramer-Rao bound.
 
 This is the brief's core characterization requirement in one script: sweep
 SNR, run many noisy trials per point, measure bias (systematic error) and
-std (scatter) for both estimators separately, and state the theoretical
+std (scatter) for each estimator separately, and state the theoretical
 floor being compared against -- rather than asserting which method is
 better, this script MEASURES it and writes the answer to results/.
 
@@ -38,11 +38,23 @@ WHY n_trials=300 PER SNR POINT
 The standard error of a SAMPLE STANDARD DEVIATION (not the mean) scales
 roughly as std/sqrt(2n) for a roughly-normal error distribution. At
 n=300, that is std/sqrt(600) ~= 4.1% of the measured std itself -- tight
-enough to distinguish the two estimators' std curves from each other
-clearly (the effect size measured informally during the Gaussian fit's own
+enough to distinguish the estimators' std curves from each other clearly
+(the effect size measured informally during the Gaussian fit's own
 development was ~20%, well above this noise floor), without the runtime
 cost of a much larger sample. `--quick` drops to 60 trials for fast
 iteration during development, at the cost of noisier per-point estimates.
+
+WHY THE MATCHED FILTER WAS ADDED AS A THIRD METHOD
+--------------------------------------------------------
+The brief only requires two estimators; this project built a third
+(matched_filter.py) for a reason orthogonal to the bias/std comparison
+this script runs: real-time hardware friendliness (a fixed-cost
+convolution vs. a variable-cost iterative fit), directly relevant to the
+Real-time section (2d) that follows this one. It is included here anyway
+because the same bias/std/CRLB machinery already exists and the
+comparison is informative in its own right -- log-parabola interpolation
+turns out to behave very differently from either other method's failure
+mode.
 """
 
 from __future__ import annotations
@@ -59,12 +71,18 @@ import numpy as np
 from sptrack.crlb import position_crlb
 from sptrack.estimators.centroid import centroid_estimate
 from sptrack.estimators.gaussian_fit import gaussian_fit_estimate
+from sptrack.estimators.matched_filter import matched_filter_estimate
 from sptrack.simulate import Simulator
 from sptrack.snr import snr_to_flux
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = ROOT / "results"
 FIGURES_DIR = ROOT / "figures"
+
+METHODS = ["centroid", "fit", "matched"]
+COLORS = {"centroid": "#c0392b", "fit": "#27ae60", "matched": "#2166ac"}
+MARKERS = {"centroid": "v", "fit": "^", "matched": "s"}
+LABELS = {"centroid": "centroid", "fit": "Gaussian fit", "matched": "matched filter"}
 
 
 def run(quick: bool = False) -> dict:
@@ -87,13 +105,10 @@ def run(quick: bool = False) -> dict:
     snr_targets = np.geomspace(3, 300, 10)
     n_trials = 60 if quick else 300
 
-    results: dict = {
-        "snr": [], "flux": [],
-        "centroid_bias": [], "centroid_std": [],
-        "fit_bias": [], "fit_std": [],
-        "crlb": [],
-        "n_trials": n_trials,
-    }
+    results: dict = {"snr": [], "flux": [], "crlb": [], "n_trials": n_trials}
+    for m in METHODS:
+        results[f"{m}_bias"] = []
+        results[f"{m}_std"] = []
 
     for snr in snr_targets:
         flux = snr_to_flux(
@@ -104,7 +119,7 @@ def run(quick: bool = False) -> dict:
             shape, x0, y0, flux, background_e, sim.sigma, sigma_read_e**2
         )
 
-        c_errs, f_errs = [], []
+        errs: dict = {m: [] for m in METHODS}
         for _ in range(n_trials):
             # Convert DN -> electrons before handing frames to the
             # estimators: read_var_e2, flux, and the CRLB are all defined in
@@ -113,22 +128,26 @@ def run(quick: bool = False) -> dict:
             # system -- passing raw DN through unconverted would silently
             # mismatch flux/background against the model's assumed scale.
             frame_e = sim.dn_to_electrons(sim.render(x0, y0, flux))
+
             c = centroid_estimate(frame_e, half_width, prior=(x0, y0))
             g = gaussian_fit_estimate(
                 frame_e, half_width, sim.sigma, sigma_read_e**2, prior=(x0, y0)
             )
+            mfe = matched_filter_estimate(frame_e, half_width, sim.sigma, prior=(x0, y0))
+
             if c.ok:
-                c_errs.append(c.x - x0)
+                errs["centroid"].append(c.x - x0)
             if g.ok:
-                f_errs.append(g.x - x0)
+                errs["fit"].append(g.x - x0)
+            if mfe.ok:
+                errs["matched"].append(mfe.x - x0)
 
         results["snr"].append(float(snr))
         results["flux"].append(float(flux))
-        results["centroid_bias"].append(float(np.mean(c_errs)))
-        results["centroid_std"].append(float(np.std(c_errs)))
-        results["fit_bias"].append(float(np.mean(f_errs)))
-        results["fit_std"].append(float(np.std(f_errs)))
         results["crlb"].append(float(crlb_x))
+        for m in METHODS:
+            results[f"{m}_bias"].append(float(np.mean(errs[m])))
+            results[f"{m}_std"].append(float(np.std(errs[m])))
 
     RESULTS_DIR.mkdir(exist_ok=True)
     with open(RESULTS_DIR / "exp01_snr_characterization.json", "w") as fh:
@@ -141,20 +160,17 @@ def run(quick: bool = False) -> dict:
 
 def _plot(results: dict) -> None:
     snr = np.array(results["snr"])
-    c_bias = np.array(results["centroid_bias"]) * 1000
-    f_bias = np.array(results["fit_bias"]) * 1000
-    c_std = np.array(results["centroid_std"])
-    f_std = np.array(results["fit_std"])
     crlb = np.array(results["crlb"])
-    c_eff = crlb / c_std
-    f_eff = crlb / f_std
+    bias = {m: np.array(results[f"{m}_bias"]) * 1000 for m in METHODS}
+    std = {m: np.array(results[f"{m}_std"]) for m in METHODS}
+    eff = {m: crlb / std[m] for m in METHODS}
 
     fig = plt.figure(figsize=(13, 8.5))
     gs = fig.add_gridspec(2, 2, height_ratios=[3, 2], hspace=0.4, wspace=0.28)
 
     ax0 = fig.add_subplot(gs[0, 0])
-    ax0.semilogx(snr, c_bias, "v-", color="#c0392b", label="centroid")
-    ax0.semilogx(snr, f_bias, "^-", color="#27ae60", label="Gaussian fit")
+    for m in METHODS:
+        ax0.semilogx(snr, bias[m], MARKERS[m] + "-", color=COLORS[m], label=LABELS[m])
     ax0.axhline(0, color="gray", lw=0.8, linestyle="--")
     ax0.set_xlabel("SNR")
     ax0.set_ylabel("bias (millipixels)")
@@ -164,8 +180,8 @@ def _plot(results: dict) -> None:
 
     ax1 = fig.add_subplot(gs[0, 1])
     ax1.loglog(snr, crlb, "-", color="black", lw=1.5, label="CRLB (theoretical floor)")
-    ax1.loglog(snr, c_std, "v-", color="#c0392b", label="centroid")
-    ax1.loglog(snr, f_std, "^-", color="#27ae60", label="Gaussian fit")
+    for m in METHODS:
+        ax1.loglog(snr, std[m], MARKERS[m] + "-", color=COLORS[m], label=LABELS[m])
     ax1.set_xlabel("SNR")
     ax1.set_ylabel("std (px)")
     ax1.set_title("Precision (std) vs SNR, against the CRLB")
@@ -174,27 +190,27 @@ def _plot(results: dict) -> None:
 
     ax_text = fig.add_subplot(gs[1, :])
     ax_text.axis("off")
-    worst_snr_idx = int(np.argmin(c_eff))
+    mean_eff = {m: eff[m].mean() for m in METHODS}
+    worst_c_idx = int(np.argmin(eff["centroid"]))
     explanation = (
         "What we see:\n"
-        f"  Left: the centroid carries a LARGE bias at low SNR ({c_bias[0]:.0f} millipixels at SNR={snr[0]:.1f}) that\n"
-        f"  shrinks toward zero as SNR rises; the Gaussian fit's bias stays small (within a few millipixels)\n"
-        "  across the whole range. Right: the Gaussian fit's std hugs the theoretical CRLB curve closely at\n"
-        "  every SNR tested; the centroid's std sits visibly above it everywhere, worst in the middle of the\n"
-        f"  range (efficiency {c_eff[worst_snr_idx]:.2f} at SNR={snr[worst_snr_idx]:.1f}) and only partially closing the gap at high SNR.\n"
+        f"  Left: the centroid carries a LARGE bias at low SNR ({bias['centroid'][0]:.0f} millipixels at SNR={snr[0]:.1f}) that\n"
+        "  shrinks toward zero as SNR rises; the Gaussian fit and matched filter both stay close to zero bias\n"
+        "  across the whole range. Right: the Gaussian fit's std hugs the CRLB curve at every SNR tested; the\n"
+        f"  matched filter sits a bit above it; the centroid sits furthest above, worst at SNR={snr[worst_c_idx]:.1f}\n"
+        f"  (efficiency {eff['centroid'][worst_c_idx]:.2f}).\n"
         "\n"
         "What we can derive:\n"
-        f"  1. Mean efficiency (CRLB / measured std) across all 10 SNR points: centroid={c_eff.mean():.2f}, Gaussian\n"
-        f"     fit={f_eff.mean():.2f} -- the fit is consistently near-optimal, the centroid consistently is not.\n"
-        "  2. The centroid's low-SNR bias is a real, separate failure mode from its variance gap -- background\n"
-        "     subtraction and equal pixel weighting both distort the estimate systematically when noise is\n"
-        "     comparable to signal, not just scatter it randomly.\n"
-        "  3. Which method wins, stated precisely: the Gaussian fit wins at every SNR tested here, both in bias\n"
-        "     and in variance -- there is no SNR regime in this sweep where the centroid's simplicity is worth\n"
-        "     its accuracy cost. Its advantage is a lower per-frame compute cost (characterised next, 2d), not\n"
-        "     precision -- the tradeoff is speed vs. accuracy, not \"different regimes, different winners\".\n"
-        "  4. This directly quantifies, not just asserts, the head-to-head result found informally while\n"
-        "     building the Gaussian fit (a 22% std improvement at one specific SNR) -- now it is a full curve."
+        f"  1. Mean efficiency (CRLB / measured std): centroid={mean_eff['centroid']:.2f}, Gaussian fit={mean_eff['fit']:.2f},\n"
+        f"     matched filter={mean_eff['matched']:.2f} -- a clean three-way ordering: fit > matched filter > centroid.\n"
+        "  2. The matched filter's log-parabola interpolation removes the CURVE-SHAPE bias that would otherwise\n"
+        "     show up (proven exactly in tests/test_matched_filter.py), which is why its bias stays as flat as\n"
+        "     the fit's despite being a much cheaper, non-iterative method.\n"
+        "  3. Which method wins, stated precisely: the Gaussian fit wins on pure accuracy at every SNR tested.\n"
+        "     The matched filter is the accuracy/cost compromise -- most of the fit's precision, none of its\n"
+        "     variable iteration cost (quantified next, 2d). The centroid is fastest but least accurate\n"
+        "     everywhere -- the tradeoff across all three is speed vs. accuracy, not \"different regimes, different\n"
+        "     winners\"."
     )
     ax_text.text(
         0.0, 1.0, explanation, transform=ax_text.transAxes, fontsize=9.0,
@@ -209,20 +225,17 @@ def _plot(results: dict) -> None:
 
 def _print_summary(results: dict) -> None:
     snr = np.array(results["snr"])
-    c_std = np.array(results["centroid_std"])
-    f_std = np.array(results["fit_std"])
     crlb = np.array(results["crlb"])
-
-    c_eff = crlb / c_std
-    f_eff = crlb / f_std
+    eff = {m: crlb / np.array(results[f"{m}_std"]) for m in METHODS}
 
     print(f"\n[exp01] SNR sweep complete: {len(snr)} points, {results['n_trials']} trials each")
-    print(f"{'SNR':>8} {'centroid_eff':>13} {'fit_eff':>10}")
+    header = f"{'SNR':>8}" + "".join(f"{m + '_eff':>16}" for m in METHODS)
+    print(header)
     for i in range(len(snr)):
-        print(f"{snr[i]:8.1f} {c_eff[i]:13.2f} {f_eff[i]:10.2f}")
-    print(
-        f"\nMean efficiency: centroid={c_eff.mean():.2f}, Gaussian fit={f_eff.mean():.2f}"
-    )
+        row = f"{snr[i]:8.1f}" + "".join(f"{eff[m][i]:16.2f}" for m in METHODS)
+        print(row)
+    means = ", ".join(f"{LABELS[m]}={eff[m].mean():.2f}" for m in METHODS)
+    print(f"\nMean efficiency: {means}")
 
 
 if __name__ == "__main__":

@@ -779,6 +779,103 @@ output at every SNR point).**
 
 ---
 
+## Third estimator: matched filter (`sptrack/estimators/matched_filter.py`)
+
+**Not part of the original plan — added after being asked directly why it
+wasn't considered.**
+- The brief only requires two estimators ("windowed centroid... and a 2D
+  Gaussian fit"), both of which were already built and characterised. A
+  matched-filter/correlation estimator is a legitimate, well-established
+  third technique, and it simply hadn't been raised as a "go further"
+  candidate before being asked about directly. Re-derived and re-tested
+  from scratch here (own docstring reasoning, own log-parabola derivation,
+  own tests), not copied from any prior reference implementation.
+
+**Built for a different reason than accuracy: real-time hardware
+friendliness.**
+- Why this matters as a genuinely separate axis: the centroid and the
+  Gaussian fit differ in accuracy, but neither is shaped for dedicated
+  hardware — a correlation IS a convolution, the one operation SIMD/DSP/
+  FPGA are built to do with fixed, predictable timing, unlike an iterative
+  fit whose actual runtime depends on how many iterations the data
+  happens to need. This is the real motivation, directly feeding into
+  §2d's Real-time comparison next.
+
+**The template is a simple SAMPLED Gaussian, not the pixel-integrated
+response `psf.py` uses everywhere else.**
+- Why the inconsistency is deliberate, not an oversight: pixel-integration
+  exactness mattered in `psf.py` because it was the RENDERING model — any
+  error there shows up directly as position-dependent bias in the
+  simulated data itself. Here the kernel is a detection filter, not a
+  generative model; a slightly-imperfect kernel still gives a valid (if
+  marginally sub-optimal) matched filter, and the sub-pixel interpolation
+  step is what actually does the precision work.
+
+**Log-parabola interpolation is the default, not the plain parabola —
+verified as EXACT for noiseless Gaussian samples, not just theoretically
+motivated.**
+- The mechanism: correlating a Gaussian with a Gaussian produces another
+  Gaussian (not a parabola), so fitting a plain parabola to 3 samples of a
+  true Gaussian peak is only exact when the peak sits precisely on a
+  sample or precisely halfway between two — the same "pixel locking"
+  S-curve bias already characterised for the centroid, arriving through a
+  completely different mechanism (curve-shape mismatch, not
+  truncation/weighting). Since `log(Gaussian)` IS exactly a parabola,
+  fitting the parabola to the LOG of the samples instead recovers the true
+  peak exactly.
+- Verified two ways, not just derived: (1) `test_log_parabola_offset_is_exact_for_noiseless_gaussian_samples`
+  checks agreement to `1e-9` across 7 sub-pixel offsets against raw
+  (non-pixel-integrated) Gaussian samples — deliberately raw, to test the
+  interpolation formula's own mathematical claim independent of the
+  separate pixel-integration question; (2) a full-pipeline deterministic
+  comparison at the analytically worst-case quarter-sample offset shows
+  log-parabola error ~8e-7 px against plain-parabola error ~0.0075 px —
+  about 10,000x worse for the plain version, on identical data.
+
+**FINDING, caught by testing, corrected the same way as similar findings
+elsewhere in this project: an early Monte Carlo comparison test came out
+backwards, and the fix was to change the TEST's design, not the
+conclusion.**
+- What happened: a first attempt at proving log-parabola beats the plain
+  parabola compared the MEAN of 300 *noisy* trials at one fixed sub-pixel
+  offset. It failed — the plain parabola's measured mean bias came out
+  *smaller* than the log-parabola's. This did not contradict the
+  deterministic exactness proof above; it meant 300 noisy samples of a
+  small systematic effect, at a single offset, is a statistically
+  underpowered way to detect it — the comparison was dominated by Monte
+  Carlo sampling noise on the mean, not by the real underlying bias curve.
+  Fixed by comparing on a deterministic, noise-free image instead (the
+  same style already used to prove the effect analytically), where the
+  true difference is large and unambiguous rather than buried in noise.
+- Also caught in the same debugging pass: an initial version of the
+  "correlation peak widens by sqrt(2)" test built its test signal on a
+  fine PHYSICAL grid (spacing 0.2) while `gaussian_kernel_1d` and
+  `correlate1d` operate purely in ARRAY-INDEX units (spacing 1) — silently
+  making the effective kernel 5x too narrow relative to the signal. Caught
+  because the measured output width came out suspiciously close to the
+  input sigma itself rather than `sigma*sqrt(2)`; fixed by keeping the
+  test on unit spacing throughout, matching how the real estimator
+  actually uses these functions.
+
+**A genuine, stated design tension: the template width that's optimal for
+DETECTING a spot is not the width that's optimal for LOCALISING it once
+found.**
+- The matched-filter theorem says the best template for detection matches
+  the signal's own width exactly. But correlating two equal-width
+  Gaussians produces a peak `sqrt(2)` WIDER than either — verified
+  directly (`test_correlation_peak_widens_by_sqrt2_when_template_matches_signal`,
+  agreement to 1%) — and a wider peak is flatter, carrying less
+  information about exactly where it sits. This shows up concretely in
+  the full characterization sweep: the matched filter's efficiency
+  (CRLB/measured std) *falls* as SNR rises (0.96 at SNR=3 down to 0.68 at
+  SNR=300) rather than staying flat or improving — once noise stops being
+  the limiting factor, the width penalty from matching the detection-
+  optimal template becomes the dominant cost, exactly as the tension
+  predicts. `template_sigma_scale` exposes this as a tunable knob rather
+  than hiding it behind one hard-coded choice.
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*

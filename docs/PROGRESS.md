@@ -36,13 +36,13 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Monte Carlo trials | DONE | `experiments/exp01_snr_characterization.py` — 10 SNR points (log-spaced 3 to 300), 300 trials each, both estimators; results in `results/exp01_snr_characterization.json` |
-| Bias vs SNR, per method | DONE | Same experiment; centroid shows a large low-SNR bias (-235 millipixels at SNR=3) shrinking toward zero as SNR rises, Gaussian fit stays within a few millipixels throughout |
-| Std dev vs SNR, per method | DONE | Same experiment; std curves for both methods plotted against the CRLB across the full SNR range |
+| Monte Carlo trials | DONE | `experiments/exp01_snr_characterization.py` — 10 SNR points (log-spaced 3 to 300), 300 trials each, all three estimators; results in `results/exp01_snr_characterization.json` |
+| Bias vs SNR, per method | DONE | Same experiment; centroid shows a large low-SNR bias (-235 millipixels at SNR=3) shrinking toward zero as SNR rises, Gaussian fit and matched filter both stay within a few millipixels throughout |
+| Std dev vs SNR, per method | DONE | Same experiment; std curves for all three methods plotted against the CRLB across the full SNR range |
 | Error-vs-SNR plots | DONE | `figures/exp01_snr_characterization.png` — bias-vs-SNR and std-vs-SNR (log-log, against CRLB), with embedded explanation panel |
 | Theoretical precision floor stated | DONE | `sptrack/crlb.py::position_crlb` — Fisher information built from the same Jacobian/variance model as the Gaussian fit, so the bound and the fit can't silently disagree about what model is being tested; `tests/test_crlb.py` (monotonic in flux/read noise, symmetric for a symmetric setup, converges to the classical continuous-sampling formula as sigma grows relative to the pixel pitch) |
-| Comparison to the floor | DONE | `tests/test_crlb.py::test_gaussian_fit_approaches_the_crlb_at_high_snr` (single-point check, 25% tolerance) plus the full sweep in `exp01_snr_characterization.py`: mean efficiency across 10 SNR points is 0.95 for the Gaussian fit vs 0.63 for the centroid |
-| Which method wins in which regime, and why | DONE | Gaussian fit wins at every SNR tested (bias and precision both) — no regime favours the centroid on accuracy; the centroid's advantage is per-frame compute cost, not precision (characterised next, §2d). See `figures/exp01_snr_characterization.png`'s embedded analysis and `docs/ASSUMPTIONS.md` |
+| Comparison to the floor | DONE | `tests/test_crlb.py::test_gaussian_fit_approaches_the_crlb_at_high_snr` (single-point check, 25% tolerance) plus the full sweep in `exp01_snr_characterization.py`: mean efficiency across 10 SNR points is 0.95 (Gaussian fit), 0.84 (matched filter), 0.63 (centroid) |
+| Which method wins in which regime, and why | DONE | Gaussian fit wins at every SNR tested (bias and precision both); matched filter is the accuracy/cost compromise — most of the fit's precision (log-parabola interpolation removes its curve-shape bias) at a fraction of the compute; centroid is fastest but least accurate everywhere. No regime favours the centroid on accuracy — the tradeoff across all three is speed vs. accuracy, quantified next in §2d. See `figures/exp01_snr_characterization.png`'s embedded analysis and `docs/ASSUMPTIONS.md` |
 
 ## 2d. Real-time
 
@@ -89,6 +89,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Very low photon count robustness | NOT STARTED | |
 | Precision limit derived from first principles | NOT STARTED | |
 | Latency budget, full photon-to-estimate path | NOT STARTED | |
+| Third estimator (matched filter / correlation peak) — "anything else you think matters" | DONE | `sptrack/estimators/matched_filter.py::matched_filter_estimate`; `tests/test_matched_filter.py` (log-parabola interpolation proven exact for noiseless Gaussian samples, plain parabola proven measurably biased on the same data, correlation peak width matches the sqrt(2) detection/localisation-tension prediction, approximately unbiased against the real noise chain); folded into `experiments/exp01_snr_characterization.py` — mean efficiency 0.84, between the centroid (0.63) and the Gaussian fit (0.95). Built for real-time relevance (fixed-cost convolution vs. variable-cost iteration), not required by the brief |
 
 ## 6. What a Strong Submission Shows (self-check before submitting)
 
