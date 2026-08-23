@@ -306,6 +306,49 @@ as its own independent noise source, unlike dark current.**
 
 ---
 
+## SNR control (`sptrack/snr.py`)
+
+**SNR is defined as PEAK-PIXEL SNR, not total-flux SNR.**
+- Why: a windowed/weighted position estimator concentrates most of its
+  weight on the brightest few pixels near the peak, so the peak pixel's own
+  signal-to-noise ratio is what actually limits achievable position
+  precision — far more directly than a total-flux number that says nothing
+  about how that flux is distributed. Also the conventional definition in
+  point-source imaging generally (astronomy, spot tracking).
+
+**Peak-pixel fraction is computed assuming the spot is exactly centred on
+a pixel — the canonical, best-case value, not the realised value for any
+specific rendered frame.**
+- Why: the actual fraction of flux landing in the brightest pixel is always
+  slightly lower once the spot sits off-centre (any other sub-pixel
+  position spreads more flux into neighbouring pixels). Using the on-centre
+  value gives one consistent, reproducible number to define and sweep SNR
+  against, understood as a nominal reference rather than a claim about any
+  one frame's exact realised SNR.
+- Verified `peak_pixel_fraction` behaves sensibly: it strictly decreases as
+  the spot widens (`test_peak_pixel_fraction_decreases_as_spot_widens`) —
+  a wider spot spreads the same total flux more thinly.
+
+**`snr_to_flux` solves a quadratic rather than using an approximation,
+because SNR appears both linearly (numerator) and inside a square root
+(denominator, via the signal's own photon-noise contribution).**
+- The noise budget is `Var[peak] = P + C`, where `P` is the peak pixel's
+  own signal and `C` is every OTHER noise term (background, dark, read,
+  quantization — the same `C` used throughout `sensor.py`/`scene.py`).
+  `SNR = P / sqrt(P + C)` rearranges to `P^2 - SNR^2*P - SNR^2*C = 0`,
+  solved via the quadratic formula, positive root only (P must be real).
+- Verified by direct round-trip, not just algebra: `snr_to_flux` followed
+  by `flux_to_snr` recovers the original target SNR to 1e-6 relative
+  tolerance, across 4 SNR values x 3 noise conditions
+  (`test_snr_to_flux_round_trips_through_flux_to_snr`).
+- Sanity-checked against the earlier relative-noise derivation
+  (`sensor.py`'s CV section): with every non-photon noise term made
+  negligible, `flux_to_snr` reduces to `sqrt(peak)` — the same
+  `SNR = sqrt(lambda)` result derived from first principles when photon
+  noise was first built (`test_flux_to_snr_reduces_to_sqrt_peak_when_photon_noise_dominates`).
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*
