@@ -342,6 +342,65 @@ which point it would just correct the bias directly rather than search for
 a lucky spot. So "sometimes crosses zero" does not weaken the conclusion:
 the bias is still present at almost every position, unpredictably, and
 still cannot be trusted away by hoping for that one coincidence.
+
+BIT-DEPTH QUANTIZATION
+--------------------------
+Everything above this point in the file operates in electrons -- a
+continuous, real-valued quantity. The very last step in a real sensor's
+pipeline is the ADC (analogue-to-digital converter), which reports a
+DISCRETE digital number (DN), not the true continuous value. This is the
+one noise source in the whole chain that also changes the image's UNITS,
+from electrons to DN, via a conversion gain:
+
+    DN = round(electrons / gain_e_per_dn)
+
+with a finite number of representable levels set by the bit depth:
+
+    n_levels = 2 ** bit_depth        (e.g. 12-bit -> 4096 levels, 0..4095)
+
+QUANTIZATION ERROR AS UNIFORM NOISE
+----------------------------------------
+Rounding to the nearest integer DN discards whatever fraction of a DN the
+true value had -- an error uniformly distributed on [-0.5, +0.5] DN (a
+classical result: when a continuous signal already has some other noise
+mixed in before rounding -- here, everything upstream: photon noise, read
+noise, dark current -- that noise "dithers" the value enough that the
+rounding error behaves like it's drawn from a uniform distribution, rather
+than something value-dependent and awkward to model). A uniform
+distribution on an interval of width 1 has variance 1/12 (standard result:
+Var = (b-a)^2 / 12 for Uniform(a, b), here b - a = 1):
+
+    Var[quantization], in DN^2  = 1/12
+    Var[quantization], in electrons^2 = gain_e_per_dn^2 / 12
+
+This adds, as one more independent term, to the running noise budget:
+
+    Var[total], in electrons^2 = signal + mean_dark + sigma_read^2 + gain_e_per_dn^2 / 12
+
+WHY A BLACK-LEVEL PEDESTAL IS NEEDED -- CLOSING THE LOOP FROM add_read_noise
+---------------------------------------------------------------------------------
+``add_read_noise`` above notes it "can produce negative values... real
+sensors handle this with a black-level pedestal... that pedestal is a
+separate, later concern." This is that concern, resolved here: without a
+pedestal, negative electron counts (from a read-noise excursion below zero
+on a dim pixel) would clip to DN=0, and clipping only ever removes the
+negative tail -- never the positive one -- which biases the *mean* upward.
+Adding a fixed pedestal (e.g. +100 DN) before quantizing shifts the whole
+distribution up first, so a typical negative excursion still lands on a
+valid, unclipped DN (e.g. 90 instead of being clipped to 0), preserving the
+noise's symmetry. The pedestal is later subtracted back out in calibration
+(a "bias frame"), which is exactly why bias-frame subtraction exists as a
+real calibration step.
+
+SATURATION: THE OTHER CLIP, AT THE TOP END
+-----------------------------------------------
+The ADC also cannot represent anything above its maximum level
+(``2**bit_depth - 1``). Clipping there is what saturation physically is:
+once a pixel's true electron count would map to a DN above that ceiling,
+all the information about exactly how much brighter it was is gone --
+which is why saturation is a hard bias, not recoverable noise, and why
+auto-exposure/gain control (a "go further" item) exists specifically to
+avoid it.
 """
 
 from __future__ import annotations
@@ -448,3 +507,24 @@ def apply_prnu(photo_signal: np.ndarray, prnu_map: np.ndarray) -> np.ndarray:
     bypass that pathway entirely (see the module docstring).
     """
     return photo_signal * prnu_map
+
+
+def quantize_to_dn(
+    image_e: np.ndarray,
+    gain_e_per_dn: float,
+    bit_depth: int,
+    black_level_dn: float = 0.0,
+) -> np.ndarray:
+    """Convert electrons to a clipped, integer-valued digital number (DN).
+
+    This is the LAST step in the chain and the only one that changes units:
+    input is electrons, output is DN. ``black_level_dn`` is a fixed pedestal
+    added before quantizing, so that negative electron excursions (from read
+    noise on a dim pixel) don't get asymmetrically clipped at zero and bias
+    the mean upward -- see the module docstring. Output is clipped to the
+    ADC's representable range ``[0, 2**bit_depth - 1]``; the top clip is
+    what saturation physically is.
+    """
+    max_dn = 2**bit_depth - 1
+    dn = np.round(image_e / gain_e_per_dn + black_level_dn)
+    return np.clip(dn, 0, max_dn)

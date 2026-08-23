@@ -10,6 +10,7 @@ from sptrack.sensor import (
     apply_prnu,
     generate_hot_pixel_mask,
     generate_prnu_map,
+    quantize_to_dn,
 )
 
 
@@ -361,3 +362,83 @@ def test_prnu_introduces_a_position_dependent_bias():
     # bias regardless of sub-pixel position, it would just be a (harmless,
     # flux-only) calibration offset rather than a position-dependent one.
     assert bias_a != pytest.approx(bias_b, abs=1e-6)
+
+
+def test_quantize_basic_rounding_is_correct():
+    # 500 electrons at gain=10 e-/DN lands exactly on DN=50. 505 and 495 are
+    # both exactly halfway between DN=50 and their neighbour (50.5 and 49.5
+    # respectively); NumPy rounds half-to-even, and since 50 is even, BOTH
+    # verified numerically to round to 50, not to 51/49.
+    image = np.array([500.0, 505.0, 495.0])
+    dn = quantize_to_dn(image, gain_e_per_dn=10.0, bit_depth=12)
+    assert dn[0] == 50
+    assert dn[1] == 50
+    assert dn[2] == 50
+
+
+def test_quantize_output_is_integer_valued():
+    rng = np.random.default_rng(40)
+    image = rng.uniform(0, 5000, size=(20, 20))
+    dn = quantize_to_dn(image, gain_e_per_dn=7.0, bit_depth=12)
+    assert np.all(dn == np.round(dn))
+
+
+def test_quantize_saturates_at_the_top_of_the_adc_range():
+    bit_depth = 8
+    max_dn = 2**bit_depth - 1  # 255
+    image = np.array([0.0, 100.0, 1_000_000.0])  # last value is absurdly bright
+    dn = quantize_to_dn(image, gain_e_per_dn=1.0, bit_depth=bit_depth)
+    assert dn[2] == max_dn
+    assert dn.max() <= max_dn
+
+
+def test_quantize_clips_negative_electrons_to_zero_without_a_pedestal():
+    image = np.array([-50.0, -5.0, 0.0, 5.0])
+    dn = quantize_to_dn(image, gain_e_per_dn=1.0, bit_depth=12, black_level_dn=0.0)
+    assert dn[0] == 0
+    assert dn[1] == 0
+    assert dn.min() >= 0
+
+
+def test_quantization_error_variance_matches_the_1_over_12_prediction():
+    rng = np.random.default_rng(41)
+    gain = 10.0
+
+    # A broad, continuous range of electron values (spanning 400 DN steps)
+    # so the fractional part of electrons/gain is close to uniformly
+    # distributed -- the condition the "quantization error is uniform"
+    # approximation in the docstring depends on. bit_depth=16 keeps max_dn
+    # far above this range so saturation never confounds the result.
+    electrons = rng.uniform(1000.0, 5000.0, size=100_000)
+    dn = quantize_to_dn(electrons, gain_e_per_dn=gain, bit_depth=16)
+
+    reconstructed = dn * gain
+    residual = electrons - reconstructed
+
+    expected_var = gain**2 / 12  # = 8.33...
+    assert residual.mean() == pytest.approx(0.0, abs=0.1)
+    assert residual.var() == pytest.approx(expected_var, abs=0.5)
+
+
+def test_black_level_pedestal_removes_the_clipping_bias():
+    # Without a pedestal: a signal centred at 0 with real (read-noise-like)
+    # scatter has its negative half clipped to DN=0, which can ONLY push the
+    # mean up, never down -- a real, sizeable bias. With a large-enough
+    # pedestal, the same scatter stays away from the clip entirely and the
+    # reconstructed mean is unbiased. This is the "separate, later concern"
+    # flagged in add_read_noise's docstring, resolved here.
+    rng = np.random.default_rng(42)
+    sigma = 20.0
+    electrons = rng.normal(0.0, sigma, size=200_000)  # ~half the draws are negative
+    gain = 1.0
+
+    unpedestalled_dn = quantize_to_dn(electrons, gain, bit_depth=16, black_level_dn=0.0)
+    # Theoretical mean of max(X, 0) for X ~ Normal(0, sigma) is sigma/sqrt(2*pi).
+    expected_bias = sigma / np.sqrt(2 * np.pi)
+    assert unpedestalled_dn.mean() == pytest.approx(expected_bias, rel=0.05)
+    assert unpedestalled_dn.mean() > 5.0  # a real, sizeable bias, not noise
+
+    pedestal = 100.0  # 5 sigma away from the clip -- clipping becomes negligible
+    pedestalled_dn = quantize_to_dn(electrons, gain, bit_depth=16, black_level_dn=pedestal)
+    reconstructed = pedestalled_dn - pedestal
+    assert reconstructed.mean() == pytest.approx(0.0, abs=0.1)

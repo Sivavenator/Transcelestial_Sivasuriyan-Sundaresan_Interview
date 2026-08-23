@@ -218,6 +218,32 @@ consumer sensor); the position-dependent-bias test uses `sigma_prnu = 0.05`
   directly in `test_prnu_introduces_a_position_dependent_bias`: the same
   fixed gain map produces a different bias at x0=10.0 than at x0=10.5.
 
+**Quantization error is treated as uniform noise with variance
+`gain^2 / 12`, a classical approximation rather than an exact statement.**
+- Why the approximation is valid here: it depends on the signal already
+  having some other noise mixed in before rounding (which it does —
+  everything upstream: photon, read, dark), so the rounding error's
+  fractional part behaves like it's drawn from a uniform distribution
+  rather than something value-dependent. Verified directly, not just
+  asserted: `test_quantization_error_variance_matches_the_1_over_12_prediction`
+  reconstructs 100,000 quantized values and checks the residual variance
+  against `gain^2/12` to a tight tolerance.
+
+**A black-level pedestal (`black_level_dn`) exists specifically to prevent
+quantization from introducing a bias, not just noise.**
+- Why: without a pedestal, negative electron excursions (routine with read
+  noise on a dim pixel) clip to DN=0 — and clipping only ever removes the
+  negative tail, which can only push the mean UP, never down. This is a
+  real, sizeable, measured effect, not a theoretical nicety: in
+  `test_black_level_pedestal_removes_the_clipping_bias`, a zero-mean
+  Normal(0, 20) signal without a pedestal quantizes to a mean of +7.99
+  (matching the predicted `sigma/sqrt(2*pi)` exactly) — with a sufficient
+  pedestal, that bias disappears entirely (reconstructed mean back to ~0).
+- This resolves something flagged earlier and left open: `add_read_noise`'s
+  docstring notes it "can produce negative values... handled with a
+  black-level pedestal... that pedestal is a separate, later concern." This
+  is that concern, closed.
+
 ---
 
 ## Scene (`sptrack/scene.py`)
