@@ -47,6 +47,42 @@ stated explicitly here rather than silently baked into the number, since
 "gradient_frac" alone doesn't fully pin down the peak-to-peak spread once the
 angle stops being axis-aligned.
 
+THE MATH BEHIND "UP TO sqrt(2) TIMES"
+------------------------------------------
+Recall ``t = x_norm*cos(angle) + y_norm*sin(angle)``, with
+``x_norm, y_norm`` both in ``[-1, 1]``.
+
+Axis-aligned case (angle = 0): ``t = x_norm``. At the corners
+``(+-1, +-1)``, ``t`` depends only on ``x_norm``, so it hits exactly
+``+-1``. Peak-to-peak of ``t`` = 2, giving peak-to-peak background =
+``gradient_frac * mean_level`` exactly -- matching the derivation above.
+
+Diagonal case (angle = 45 deg = pi/4): ``cos(45deg) = sin(45deg) =
+1/sqrt(2)``, so ``t = (x_norm + y_norm) / sqrt(2)``.
+  * at corner (1, 1):    t = (1+1)/sqrt(2)   =  2/sqrt(2) =  sqrt(2)
+  * at corner (-1, -1):  t = (-1-1)/sqrt(2)  = -2/sqrt(2) = -sqrt(2)
+
+Peak-to-peak of ``t``, corner to corner, is ``sqrt(2) - (-sqrt(2)) =
+2*sqrt(2)``, not 2. The ratio ``2*sqrt(2) / 2 = sqrt(2)`` is exactly the
+factor stated above: a diagonal gradient swings ``sqrt(2)`` times further,
+corner to corner, than an axis-aligned one -- so peak-to-peak background
+at 45deg is ``sqrt(2) * gradient_frac * mean_level``.
+
+WHY 45 DEGREES SPECIFICALLY IS THE WORST CASE
+--------------------------------------------------
+Picking corner signs to align with the gradient, the corner value of ``t``
+is ``|cos(angle)| + |sin(angle)|``. By Cauchy-Schwarz:
+
+    cos(theta) + sin(theta)
+        <= sqrt(1^2 + 1^2) * sqrt(cos^2(theta) + sin^2(theta))
+        = sqrt(2) * 1 = sqrt(2)
+
+with equality exactly when ``cos(theta) = sin(theta)``, i.e.
+``theta = 45deg``. So ``|cos(theta)| + |sin(theta)|`` ranges from 1
+(axis-aligned, 0deg or 90deg) up to ``sqrt(2)`` (diagonal, 45deg) -- which
+is exactly the "up to sqrt(2)" bound, and 45deg is the specific angle where
+it's tight.
+
 Like a spot's flux, this background level is a *mean* -- it's electrons per
 pixel before shot noise, and it should be summed with the spot's mean image
 and then run through ``sensor.add_photon_noise`` together, once, since

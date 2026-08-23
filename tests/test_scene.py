@@ -49,3 +49,22 @@ def test_gradient_direction_is_correct():
     # than bottom edge (first row).
     bg_v = render_background_gradient((10, 10), 100.0, gradient_frac=0.5, angle_rad=np.pi / 2)
     assert bg_v[-1, :].mean() > bg_v[0, :].mean()
+
+
+def test_diagonal_gradient_corner_to_corner_is_sqrt2_times_axis_aligned():
+    # Direct empirical check of the docstring's derivation: at angle=45deg,
+    # corner-to-corner peak-to-peak should be sqrt(2) times the axis-aligned
+    # edge-to-edge peak-to-peak, since t there ranges over [-sqrt(2), sqrt(2)]
+    # instead of [-1, 1]. A large odd-sized grid gives corner pixels that sit
+    # almost exactly at normalised coordinates (+-1, +-1).
+    mean_level = 100.0
+    gradient_frac = 0.4
+    shape = (101, 101)  # odd size -> corner pixels land exactly on +-1
+
+    diagonal = render_background_gradient(shape, mean_level, gradient_frac, angle_rad=np.pi / 4)
+    corner_peak_to_peak = diagonal[-1, -1] - diagonal[0, 0]  # (1,1) minus (-1,-1)
+
+    axis_aligned_peak_to_peak = gradient_frac * mean_level
+    assert corner_peak_to_peak == pytest.approx(
+        np.sqrt(2) * axis_aligned_peak_to_peak, rel=1e-6
+    )
