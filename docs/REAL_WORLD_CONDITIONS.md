@@ -1,13 +1,25 @@
 # Real-World Conditions (brief §4)
 
 The brief is explicit that for this section, analysis quality matters
-more than implementation. This document identifies five conditions a real
+more than implementation — only the named example (scintillation) was
+required to be simulated. This document identifies five conditions a real
 outdoor, uncontrolled deployment would face, and for each: how it shows
 up in the image, what it does to the position estimate, and how to detect
-and handle it. The brief's named example, atmospheric scintillation, is
-additionally simulated and its impact quantified (`sptrack/scintillation.py`,
-`experiments/exp04a_scintillation.py`) — the one condition here that gets
-implementation as well as analysis, per the brief's own emphasis.
+and handle it. All five were subsequently simulated (beyond the brief's
+explicit ask, at the user's direction), each with a "Simulated result"
+subsection reporting real, measured numbers — and for the two conditions
+with a purely algorithmic fix available (background clutter, solar
+glare), a real mitigation was built and verified, not just a demonstrated
+failure. See `docs/PROGRESS.md`'s §4/§5 tables and `docs/ASSUMPTIONS.md`
+for the full build history; this document is the consolidated reference.
+
+| # | Condition | Simulated? | Mitigation built? |
+|---|---|---|---|
+| 1 | Atmospheric scintillation (brief's named example) | Yes | Bridged by §3's existing dead-reckoning |
+| 2 | Beam wander | Yes | Not separable from jitter without an independent sensor |
+| 3 | Background clutter / false sources | Yes | **Yes** — `sptrack/acquisition.py::acquire_target` |
+| 4 | Solar glare / non-uniform background | Yes | **Yes** — `sptrack/estimators/base.py::planar_background` |
+| 5 | Fog, haze, rain attenuation | Yes | System-level only (no algorithmic fix possible) |
 
 ---
 
@@ -53,6 +65,23 @@ last known-good position (dead reckoning across a bad frame). Section
 or increase exposure/gain temporarily once a fade is detected, rather
 than only passively surviving it.
 
+**Simulated result** (`sptrack/scintillation.py`, `experiments/exp04a_scintillation.py`).
+Modelled as a mean-reverting log-normal (AR(1)) flux multiplier —
+stationary (fluctuates around a stable mean, unlike drift's unbounded
+random walk) and temporally correlated (5 ms coherence time, comparable
+to the 1 ms frame period, verified against AR(1) theory directly). A
+direct A/B comparison (identical trajectory and sensor noise,
+scintillation toggled, base SNR=5.0, sigma_ln=0.6) found: overall
+position-error std 1.7x worse with scintillation (227 vs 137
+millipixels); std during deep fades 5.1x worse than during peaks (391 vs
+77 millipixels) — precision tracks the INSTANTANEOUS fade, not just
+average flux; 25 of 4096 frames were a genuine loss of lock (`ok=False`)
+vs. 0 with steady flux at the same average SNR. All 25 dropouts were
+bridged by §3's dead-reckoning without derailing the track — a real
+coincidence (that mechanism was built to survive one isolated bad frame,
+for an unrelated reason), stated honestly rather than claimed as a
+purpose-built fix.
+
 ---
 
 ## 2. Beam wander (angle-of-arrival fluctuation from turbulence)
@@ -66,22 +95,22 @@ Mechanical jitter comes from the platform; beam wander comes from the air
 between the platforms. Both look identical in a single frame — this is
 worth being explicit about, since a live reviewer could reasonably ask
 "why do you have jitter AND turbulence — aren't they double-counted?" The
-honest answer: they are not double-counted in this project because only
-mechanical jitter was built (§3); beam wander is presently a real,
-identified GAP, not something silently folded into the existing jitter
-term. If both were built together, their variances would need to be
-budgeted separately and summed, not merged into one inflated number.
+honest answer: they are not double-counted in this project — §3's
+`trajectory.py` models only mechanical jitter (platform shake); beam
+wander is modelled separately (`sptrack/beam_wander.py`) as its own,
+independent contributor, summed with jitter rather than merged into one
+inflated number.
 
 **What it does to the estimate.** Adds position noise indistinguishable,
 frame to frame, from mechanical jitter or estimation noise — the
 estimator cannot tell "the spot really moved" from "the estimate is
-noisy." Over many frames, though, its spectral signature likely differs
-from white mechanical jitter (turbulence-induced angle-of-arrival noise
-typically has more LOW-frequency power than a white process, following
-the same kind of `~1/f` character already modelled for slow drift in
-§3) — meaning it would show up as an addition to the drift/low-frequency
-part of the spectrum, not the flat jitter floor, in
-`figures/exp03a_trajectory_diagnostic.png`'s framework.
+noisy." Over many frames, though, its spectral signature differs from
+white mechanical jitter: turbulence-induced angle-of-arrival noise has
+far more LOW-frequency power than a white process (aperture averaging
+smooths out the fast structure driving scintillation, leaving
+predominantly slower structure), the same kind of character already
+modelled for slow drift in §3 — meaning it shows up as an addition to the
+drift/low-frequency part of the spectrum, not the flat jitter floor.
 
 **Detect and handle.** Cannot be separated from mechanical jitter using
 position data ALONE — no single-camera position measurement can tell
@@ -94,6 +123,26 @@ zero-mean position noise: the recovery/tracking loop already built in §3
 does not assume a specific physical CAUSE for jitter, only its
 statistics, so no new estimator logic is required — only a wider
 noise budget than mechanical shake alone would suggest.
+
+**Simulated result** (`sptrack/beam_wander.py`, `experiments/exp04c_beam_wander.py`).
+Modelled as a zero-mean, mean-reverting (OU/AR(1)) position process —
+same mathematical family as scintillation, but linear (not log-normal,
+since position can be negative) and with a longer coherence time (20 ms
+vs. scintillation's 5 ms, justified by aperture averaging smoothing out
+the fast structure). Deliberately set to the SAME std as mechanical
+jitter (0.15 px) to make the separability point sharply rather than
+softly: verified directly that two position-noise sources with identical
+time-domain variance are still ~250x separable by spectral shape alone
+(low/high-band power ratio 0.036 for white jitter vs. 9.18 for beam
+wander), and that they combine independently in quadrature (measured
+combined std 0.2097 px vs. predicted sqrt(0.15²+0.15²)=0.2121 px — almost
+exact agreement). A genuine, not-yet-characterized interaction was
+flagged: beam wander's low-frequency spectral shape overlaps with
+drift's, meaning a real deployment with both present would need a WIDER
+exclusion band in `sptrack/disturbance.py`'s peak search — increasing
+exposure to the boundary-blind-spot failure mode already found in §3
+part 4, if a real disturbance's frequency happens to sit near that
+widened boundary.
 
 ---
 
@@ -123,21 +172,34 @@ can fail silently and confidently.
 
 **Detect and handle.** Detection requires a criterion beyond "brightest":
 the real laser source has known, checkable structure that generic clutter
-usually does not share by coincidence — a known approximate flux/SNR
-range (from the link budget), a known approximate PSF width (`sigma`,
-already assumed known throughout this project), and, once tracking is
-locked, a known approximate VELOCITY (clutter unrelated to the gimbal's
-own dynamics will not move consistently with the trajectory model in
-§3). A practical acquisition-time handler: rank ALL local maxima above a
-threshold by how well a small window around each matches the expected
-Gaussian PSF width (a cheap correlation against the same
-`gaussian_kernel_1d` template already built for the matched filter,
-§5) rather than trusting raw brightness alone. Once locked, the existing
-prior-gating window (§3) already provides strong ongoing protection: a
-clutter source appearing far from the current tracked position, after
-acquisition, would simply fall outside the tracking window and never be
-seen by the estimator at all — clutter is a real risk mainly at
-acquisition / re-acquisition, not during steady tracking.
+usually does not share by coincidence — a known approximate PSF width
+(`sigma`, already assumed known throughout this project), and, once
+tracking is locked, a known approximate VELOCITY (clutter unrelated to
+the gimbal's own dynamics will not move consistently with the trajectory
+model in §3). Once locked, the existing prior-gating window (§3) already
+provides strong ongoing protection on its own: a clutter source appearing
+far from the current tracked position, after acquisition, simply falls
+outside the tracking window and is never seen by the estimator at all —
+clutter is a real risk mainly at acquisition / re-acquisition, not during
+steady tracking, which is exactly where the built mitigation below
+targets it.
+
+**Simulated result / mitigation implemented** (`sptrack/acquisition.py::acquire_target`,
+`experiments/exp04d_clutter.py`). Ranks candidate local maxima by Pearson
+correlation against the assumed Gaussian PSF template — scale-invariant,
+so it discriminates by SHAPE, not brightness, reusing the same
+underlying PSF model as the matched filter (§5) applied at acquisition
+time instead of sub-pixel refinement. Proven directly on a constructed
+frame: a clutter source with 13x the true spot's total flux but a wider
+(sigma=5px vs. the true spot's 1.75px), non-diffraction-limited profile
+fools `find_brightest_pixel` outright (picks the clutter), while
+`acquire_target` correctly picks the true spot on the IDENTICAL frame
+(shape-match score 0.984 for the true spot vs. 0.690 for the clutter).
+Worth noting honestly: the first prototype's clutter flux was not
+actually bright enough to win on PEAK pixel value despite having more
+TOTAL flux (peak brightness falls off with sigma², so a wider source
+needs disproportionately more total flux to win) — the failure mode had
+to be deliberately strengthened before it was real enough to demonstrate.
 
 ---
 
@@ -172,10 +234,29 @@ regions of the frame border (e.g. the four window corners individually,
 rather than one pooled median) reveals a gradient — a large discrepancy
 between them is a direct, cheap glare/gradient signal, no extra sensing
 required. Handling: fit a low-order (planar) background model across the
-window instead of a single flat median when a gradient is detected —
-this is a natural, bounded generalisation of the same
-`border_median_background` machinery already in place, not a new
-subsystem.
+window instead of a single flat median when a gradient is detected — a
+natural, bounded generalisation of the same `border_median_background`
+machinery already in place, built and verified below rather than left as
+a proposal.
+
+**Simulated result / mitigation implemented** (`sptrack/estimators/base.py::planar_background`,
+`experiments/exp04e_glare.py`). Checked directly before assuming
+anything: `border_median_background`'s scalar is NOT a bad estimate — it
+reads the true background value at the window's centre to ~0.002
+electrons even under a strong gradient. The real failure is structural:
+subtracting one CONSTANT from a window whose true background genuinely
+VARIES leaves a real residual gradient in the "background-subtracted"
+image, growing from ~zero at the centre toward the edges, and the
+centroid's weighted average responds to that residual as if it were real
+signal. Swept gradient strength on identical frames: the scalar-median
+approach's bias grows essentially linearly, reaching 2.54 px at the
+strongest gradient tested (gradient_frac=3.0, background varying by
+300% of its mean) — far larger than almost any other systematic bias
+characterised anywhere else in this project, and already substantial
+(0.40 px) at a much milder gradient_frac=0.3. The planar-fit mitigation's
+bias stays flat at the ~0.0001 px noise floor across the ENTIRE swept
+range, because it removes the gradient's linear structure everywhere in
+the window at once, not just estimates it accurately at one point.
 
 ---
 
@@ -212,3 +293,24 @@ clear, and — most importantly for a link budget discussion — size the
 system's link margin around realistic fog/rain statistics for the
 deployment site, which is an optical link-budget decision upstream of
 anything this codebase controls.
+
+**Simulated result** (`experiments/exp04b_fog_attenuation.py`). Modelled
+as a STEADY attenuation level swept across named weather conditions
+(clear/haze/light/moderate/dense fog, published dB/km ranges, 1 km
+assumed link) rather than a within-sequence random process — fog changes
+over minutes, not milliseconds, so treating it like scintillation's fast
+correlated fluctuation would misrepresent its real timescale. Reused
+existing SNR/flux machinery directly (no new sptrack module needed).
+Found a hard operational CLIFF, not gradual decline: clear air and haze
+barely affect lock (SNR 49 and 31), light fog alone pushes SNR down to
+2.7 (at the edge of anything characterised in §2c), and moderate/dense
+fog collapse SNR to essentially zero. A genuinely important nuance found
+along the way: the raw dropout-rate number (43-44% at moderate/dense fog)
+UNDERSTATES the real failure — the "successful" (`ok=True`) remainder's
+position std explodes to ~2 px, comparable to the whole estimation
+window, meaning those are noise-driven fits to nothing, not meaningfully
+imprecise real measurements. The same mechanism already noted for
+scintillation (`gaussian_fit_estimate`'s convergence criterion is
+step-size-based, not fit-quality-based) shows up again here — worth
+reading as a general property of this project's `ok` flag, not a
+condition-specific quirk.
