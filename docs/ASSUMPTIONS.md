@@ -67,6 +67,35 @@ combined "add all noise" call.**
   unit-tested against its own known statistical signature (e.g. photon
   noise: `Var[N] = E[N]`) in isolation.
 
+**The photon-noise statistical test uses `lambda = 500` and `n_trials =
+5000` on a 10x10 grid — neither is a round-number guess.**
+- `lambda = 500`: Poisson's *relative* noise is `1/sqrt(lambda)`, about 4.5%
+  here — high enough to sit in the "approximately Gaussian, stable
+  statistics" regime rather than the highly skewed regime of a small
+  `lambda` (e.g. 5), and the same order of magnitude as the flux values used
+  in `psf.py`'s own examples (300-1000), so the test exercises the noise
+  model in a realistic range, not an arbitrary extreme.
+- `n_trials = 5000`: derived backward from a target precision, not chosen
+  freehand. We want the *pooled* variance estimator's standard error to land
+  around 1 count (0.2% of `lambda`), so the test has real power to catch a
+  genuine bug. `SE(pooled variance) = sqrt((lambda + 2*lambda^2) / n_total)`,
+  and `n_total = n_trials * 100 pixels`. Setting `SE = 1` and solving:
+  `n_total ~= lambda + 2*lambda^2 = 500,500`, so `n_trials ~= 5005 ~= 5000`.
+- **Why pool across pixels at all, rather than check each pixel's own sample
+  variance:** a *variance* estimator is itself noisy — its standard error
+  involves the 4th statistical moment, not just `lambda` — so checking 100
+  independent per-pixel variances against one fixed tolerance will
+  occasionally flag one by chance alone. This happened during development:
+  an earlier per-pixel version of this test failed on a run where nothing
+  was actually wrong. Pooling to ~500,000 draws removes that as a source of
+  test flakiness.
+- **Why the tolerances (1.0 on the mean, 10.0 on the variance) are ~10x
+  those standard errors, not 2-3x:** at 10 SE, a false failure from ordinary
+  sampling luck is astronomically unlikely, so the test should never be
+  flaky — while a real bug (e.g. a scaling error of even 10-20%) would move
+  the empirical variance by 50-100+ counts, still 5-10x past the tolerance.
+  Wide enough to be robust, not so wide it stops meaning anything.
+
 ---
 
 *(This document will grow as each new part of the simulator — remaining
