@@ -1005,5 +1005,62 @@ deliberate second configuration once that baseline is established.
 
 ---
 
+## Dynamic tracking: frame rendering and recovery (§3, part 2)
+
+Full reasoning lives in `sptrack/sequence.py`'s module docstring and
+`experiments/exp03b_trajectory_recovery.py`'s; this section summarises.
+
+**Why the recovery loop is seeded from its own previous estimate, never
+ground truth.** A real tracker only ever has its own past output to seed
+the next frame's window from — it never has access to the true position.
+Seeding from ground truth here would make any measured error artificially
+optimistic (cheating), and would not honestly answer "can this be
+recovered from noisy frames alone," which is the actual question this
+section asks.
+
+**Why a failed fit doesn't corrupt the running prior.** If one frame's fit
+doesn't converge, its position is untrustworthy. Feeding that untrustworthy
+value forward as the next window's centre risks dragging the window off
+the real spot and cascading into a lost track from a single bad frame.
+Instead the prior only updates on success; on failure the next frame is
+still seeded from the last KNOWN-GOOD position (dead reckoning across one
+bad frame). Verified directly, not just designed-in:
+`test_recover_trajectory_survives_a_degenerate_frame_without_losing_the_prior`
+constructs a 3-frame sequence with a deliberately all-zero middle frame
+and confirms the third frame still recovers accurately — proof the second
+frame's failure (which returns NaN) never reached `extract_window` as a
+window centre, which would otherwise crash.
+
+**Why the canvas is 41x41 with a (20.3, 19.7) start, and why that's
+checked, not assumed.** The trajectory's total excursion is bounded under
+5 px (already verified in `tests/test_trajectory.py`), and the estimator's
+window (`half_width=9`) needs to stay inside the frame across that whole
+excursion — 5 + 9 = 14 px of required margin, comfortably under the ~20 px
+available from a near-centre start in a 41x41 canvas. `exp03b` doesn't
+just trust that arithmetic: it computes the actual minimum observed edge
+margin across the real 4096-frame run (9.7 px in the run on record) and
+reports it, so a future change to the trajectory's amplitude parameters
+that quietly violates the margin would show up as a small or negative
+number, not a silent mis-registration.
+
+**Why flux is held constant across the sequence.** Brightness change is
+explicitly a real-world condition (§4), separate from motion recovery
+(this section). Varying both at once would make it impossible to
+attribute a result to one effect or the other; holding flux fixed at a
+known SNR (50, matching `exp02_realtime.py` and the jitter-vs-CRLB
+argument already on record) isolates the question this section asks.
+
+**Cross-check: motion costs nothing beyond the static-frame precision
+floor.** The measured std in the moving-sequence experiment (8.8/8.9
+millipixels, x/y) closely matches the single-frame Gaussian-fit precision
+already measured at the same SNR=50 in §2c/§2d (~7-11 millipixels). This
+is a real, checkable consistency result, not a coincidence to wave away:
+it says the frame-to-frame prior-gating scheme adds no meaningful extra
+error of its own at this SNR — the tracker's precision while the spot is
+moving is (to within measurement noise) the same as its precision on a
+static spot.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*

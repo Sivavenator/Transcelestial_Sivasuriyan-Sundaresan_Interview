@@ -56,13 +56,13 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Frame sequence with moving spot | NOT STARTED | |
+| Frame sequence with moving spot | DONE | `sptrack/sequence.py::render_sequence`; `tests/test_sequence.py` (correct shape, reproducible with seed) |
 | Slow drift component | DONE | `sptrack/trajectory.py::generate_trajectory` — random-walk model; `tests/test_trajectory.py::test_drift_spectrum_is_concentrated_at_low_frequency` (low-band power >10x high-band power) |
 | Random jitter component | DONE | Same module — iid Gaussian per frame; `tests/test_trajectory.py::test_jitter_spectrum_is_approximately_flat_and_matches_requested_std` (flat spectrum, std matches requested value) |
 | One periodic disturbance component | DONE | Same module — single sinusoid; `tests/test_trajectory.py::test_disturbance_frequency_and_amplitude_recoverable_from_clean_component` (FFT recovers injected frequency to bin resolution, amplitude to 2%) |
 | Realism justified | DONE | `sptrack/trajectory.py` module docstring — each component tied to a specific physical mechanism (thermal creep/settling, mechanical shake, a dominant rotating-machinery tone), with the reasoning for why each statistical model (random walk / white noise / sinusoid) matches that mechanism; spectral separability of the three demonstrated in `figures/exp03a_trajectory_diagnostic.png` |
-| Trajectory recovery from noisy frames | NOT STARTED | |
-| Position error over sequence, measured | NOT STARTED | |
+| Trajectory recovery from noisy frames | DONE | `sptrack/sequence.py::recover_trajectory` — Gaussian fit with frame-to-frame prior gating from the estimator's own last output (never ground truth); `tests/test_sequence.py::test_recover_trajectory_survives_a_degenerate_frame_without_losing_the_prior` (a failed fit doesn't corrupt the running prior — dead reckoning proven, not just claimed), `test_recover_trajectory_tracks_a_short_moving_sequence_accurately` |
+| Position error over sequence, measured | DONE | `experiments/exp03b_trajectory_recovery.py` — full 4096-frame default (easy) scenario at SNR=50: 0 failed fits, bias x=-0.00/y=0.11 millipixels, std x=8.8/y=8.9 millipixels, matching the single-frame precision already measured at this SNR in §2c/§2d (motion costs nothing extra beyond the static-frame floor); `figures/exp03b_trajectory_recovery.png` with embedded explanation panel |
 | Disturbance frequency + amplitude identified | NOT STARTED | |
 | Recovered vs injected disturbance, reported | NOT STARTED | |
 | Scenario deliberately made challenging | NOT STARTED | |
