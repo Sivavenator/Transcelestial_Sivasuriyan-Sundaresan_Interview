@@ -487,6 +487,48 @@ specific values, not just what they are).**
 
 ## Estimators (`sptrack/estimators/`)
 
+**How the Gaussian fit's implementation was scoped, before any code was
+written — the overall shape of the design, not yet the individual choices
+detailed below.**
+- The brief asks for "a 2D Gaussian least-squares or maximum-likelihood
+  fit." The approach settled on going in: a Poisson-weighted Gauss-Newton
+  solver, with Levenberg-Marquardt damping for stability, model-based
+  variance for the weighting (not the noisy data — see below), computing a
+  gradient and an approximate Hessian each iteration, and trust-region-
+  style step capping alongside adaptive damping, iterated to convergence.
+  This is functionally the maximum-likelihood option the brief offers, via
+  the standard route of turning a Poisson likelihood into a weighted
+  least-squares problem — not literally scipy's Poisson MLE machinery, but
+  the same statistical target.
+- Given the time available, a few choices were made deliberately for
+  simplicity over generality, stated here rather than left implicit: a
+  FIXED 20-iteration cap (not an open-ended convergence search), a
+  straightforward step-size convergence check (not a more elaborate
+  stopping criterion), and adaptive damping driven only by whether chi²
+  improved. These are reasonable, well-tested building blocks for a
+  4-parameter, well-conditioned, separable model — not corners cut on
+  correctness, but scope kept to what this problem actually needs rather
+  than building a general-purpose optimiser.
+- Initialization is seeded from the centroid estimator's own output — not
+  just its position, but its flux and background estimates too, giving the
+  fit a fully-formed starting guess for all four parameters at once. This
+  mirrors how real photometry pipelines commonly operate: get a cheap
+  estimate first (the centroid), then refine it with something more
+  expensive (the fit) — rather than starting the expensive method from
+  nothing.
+- The docstring's job, deliberately: justify why Poisson-weighted MLE
+  fitting is preferable to plain unweighted least squares for this data,
+  not just describe the mechanics of how the solver works. The "why" (each
+  pixel weighted by its own noise, approaching the Cramér–Rao bound where
+  ordinary least squares cannot) is the part worth defending; the Gauss-
+  Newton/Levenberg-Marquardt machinery itself is standard numerical
+  optimisation, not a novel contribution.
+- The individual implementation choices this plan led to — the analytic
+  Jacobian, the model-based (not data-based) weighting recomputed every
+  iteration, the specific LM damping and trust-region behaviour, and the
+  centroid-seeded initialization — are each justified on their own below,
+  with the tests that verify them.
+
 **Window and background-estimation utilities (`base.py`) are shared by
 every estimator, rather than each estimator implementing its own.**
 - Why: this matters for fairness once estimators are compared later (§2c
