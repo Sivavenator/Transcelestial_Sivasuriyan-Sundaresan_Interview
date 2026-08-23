@@ -876,6 +876,69 @@ found.**
 
 ---
 
-*(This document will grow as each new part of the simulator — remaining
-noise sources, SNR control, dynamic tracking, etc. — introduces its own
-assumptions.)*
+## Real-time characterization (2d)
+
+**Why percentiles, not the mean, decide "fits the budget."** A 1 kHz loop
+needs a new estimate every 1 ms — that is a requirement on EVERY frame,
+not the average frame. A method that is fast 999 times out of 1000 but
+occasionally takes 3 ms still misses a deadline once a second. So the
+number that determines whether a method "fits" is a high percentile
+(p99, here) of its cost, not the mean — the mean is what a benchmark blog
+reports, the tail is what makes a real-time loop miss a frame.
+
+**Why these are honestly labelled as Python wall-clock numbers, not a
+production-system claim.** `time.perf_counter()` around each estimator
+call measures this project's actual Python implementations under
+CPython's interpreter overhead — real numbers, not modelled ones. But
+Python's per-call overhead is roughly constant regardless of how much
+"real work" a call does, which flatters the expensive method (the fit,
+where iteration work is a bigger share of the total) and unfairly
+penalises the cheap one (the centroid) relative to what a compiled
+implementation would show. The three methods are still validly compared
+against EACH OTHER under identical conditions, and the comparison to the
+brief's literal 1 kHz/1 ms budget is answered honestly for what it
+actually is: a Python number, not a C++/FPGA one.
+
+**Why frames are pre-rendered before timing starts.** The timed region is
+only the estimator's own work; timing frame generation together with
+estimation would measure the simulator's cost too, which a real system
+never pays per-estimate (the sensor delivers a frame already exists).
+
+**Why a warm-up pass runs untimed first.** A handful of untimed calls per
+method absorb any first-call cost (e.g. array allocation patterns,
+CPU cache warm-up) so the timed measurements reflect steady-state
+per-frame cost, not one-time setup.
+
+**FINDING: the Gaussian fit's worst observed frame exceeded the 1 ms
+budget, even though its p99 did not.** Two separate runs of
+`experiments/exp02_realtime.py` (1000 timed frames each, SNR=50) gave the
+fit a p99 of ~884-886 us (under budget) but a max of 1010-1397 us (over
+budget) — a genuine measured tail event, not a hypothetical one. This
+makes sense structurally: the fit's cost is `max_iter=20` capped
+Levenberg-Marquardt, so its per-frame cost is data-dependent (how many
+iterations a given noisy frame needs to converge or get capped) rather
+than fixed-shape like the centroid's or matched filter's single-pass
+work. `max_iter=20` bounds the WORST CASE in principle, but 20 iterations
+on an unlucky frame still costs more than the 1 ms budget allows — the
+cap prevents unbounded cost, not cost that exceeds the specific real-time
+budget in play here. This is exactly the practical, measured version of
+the abstract "detection vs. localisation" and "fixed-cost vs.
+variable-cost" arguments already made when the matched filter was added
+(§5) — now backed by a real timing number rather than only a structural
+argument.
+
+**Why the stated tradeoff is about predictability, not the median.** At
+the median, cost is a non-issue for any of the three methods — all are
+well under 1 ms, so raw speed does not argue against using the most
+accurate method (the fit). The real tradeoff, once the tail is measured
+honestly, is between the fit's superior accuracy (§2c: efficiency 0.95)
+and its lack of a hard cost ceiling, versus the matched filter's slightly
+lower accuracy (0.84) bought with a fixed, correlation-shaped cost that
+structurally cannot blow the budget the way an iterative solver can. For
+a loop that must never miss a deadline, that structural guarantee matters
+more than the typical-case number.
+
+---
+
+*(This document will grow as each new part of the simulator — dynamic
+tracking, real-world conditions, etc. — introduces its own assumptions.)*

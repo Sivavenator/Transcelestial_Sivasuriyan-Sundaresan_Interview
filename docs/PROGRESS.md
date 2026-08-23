@@ -48,9 +48,9 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Per-frame compute cost reported | NOT STARTED | |
-| Which methods fit the 1 kHz / 1 ms budget | NOT STARTED | |
-| Stated tradeoff | NOT STARTED | |
+| Per-frame compute cost reported | DONE | `experiments/exp02_realtime.py` — 1000 timed frames per method (wall-clock, Python), at SNR=50; median/p99/max in `results/exp02_realtime.json` and `figures/exp02_realtime.png` |
+| Which methods fit the 1 kHz / 1 ms budget | DONE | All three fit by the p99 (worst-case) criterion: centroid ~40 us, matched filter ~84-95 us, Gaussian fit ~880-890 us p99, all under the 1000 us budget. But the Gaussian fit's slowest *observed* frame exceeded 1000 us in both runs (1010-1397 us) — a real measured tail event, since its iteration count (and therefore cost) is data-dependent and uncapped in practice by anything except `max_iter=20` |
+| Stated tradeoff | DONE | Accuracy (2c) vs. cost predictability: the Gaussian fit is most accurate (efficiency 0.95) but has no hard cost ceiling; the matched filter trades a little accuracy (0.84) for fixed correlation-shaped cost with no tail risk; the centroid trades more accuracy (0.63) for the cheapest, most predictable cost. For a loop that must never miss a deadline, predictability — not the median cost — is what should decide the method, which favours the matched filter (or a hard-capped fit) over an uncapped fit. See `figures/exp02_realtime.png`'s embedded analysis |
 
 ## 3. Dynamic Tracking
 

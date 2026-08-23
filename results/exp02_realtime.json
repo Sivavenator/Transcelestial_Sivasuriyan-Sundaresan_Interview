@@ -1,0 +1,30 @@
+{
+  "n_frames": 1000,
+  "snr": 50.0,
+  "flux": 50648.1475355442,
+  "budget_us": 1000.0,
+  "centroid": {
+    "mean_us": 33.525800361530855,
+    "median_us": 33.09999010525644,
+    "p99_us": 39.70098216086626,
+    "max_us": 72.49999907799065,
+    "fits_budget_median": true,
+    "fits_budget_p99": true
+  },
+  "fit": {
+    "mean_us": 537.4940002511721,
+    "median_us": 423.20000648032874,
+    "p99_us": 883.7700058938934,
+    "max_us": 1010.2000087499619,
+    "fits_budget_median": true,
+    "fits_budget_p99": true
+  },
+  "matched": {
+    "mean_us": 68.53219997719862,
+    "median_us": 67.60001997463405,
+    "p99_us": 83.62999622477216,
+    "max_us": 134.8000077996403,
+    "fits_budget_median": true,
+    "fits_budget_p99": true
+  }
+}
