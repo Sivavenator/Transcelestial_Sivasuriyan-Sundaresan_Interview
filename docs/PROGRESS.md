@@ -13,7 +13,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Gaussian PSF spot renderer, known sub-pixel position | NOT STARTED | |
+| Gaussian PSF spot renderer, known sub-pixel position | DONE | `sptrack/psf.py`; `tests/test_psf.py` (flux conserved, centroid matches injected position to 1e-7 px) |
 | Photon (Poisson) noise | NOT STARTED | |
 | Gaussian read noise | NOT STARTED | |
 | Dark current | NOT STARTED | |
