@@ -306,6 +306,24 @@ This is why PRNU becomes the error floor that a high-SNR system cannot
 average its way past, and why real systems need a flat-field calibration
 (measuring each pixel's gain once and dividing it out) rather than relying
 on more frames to beat it down.
+
+ONE MORE DETAIL, CHECKED NUMERICALLY RATHER THAN ASSUMED: THE BIAS CURVE IS
+SMOOTH BUT NOT PERIODIC ACROSS PIXEL BOUNDARIES
+------------------------------------------------------------------------------
+Plotting bias vs. sub-pixel position produces a curve that is smooth
+(continuous, no jumps) within any local neighbourhood -- that part comes
+from the Gaussian PSF, which itself varies smoothly with position. It is
+NOT periodic from one pixel to the next, though: comparing the bias at a
+given offset to the bias one and two pixels away shows differences of
+several millipixels, not zero. This makes physical sense -- as the spot
+shifts by exactly one pixel, its rendered footprint shifts by one array
+index too, but the FIXED gain map underneath does not shift with it, so
+each pixel period lands the identical spot shape against a different,
+uncorrelated slice of the map. (At a glance, a wide PSF like sigma=1.75
+averages over enough pixels that the curve can still *look* like one smooth
+multi-pixel trend rather than obviously different wiggles each period --
+which is exactly why this was checked numerically rather than left as a
+visual impression.)
 """
 
 from __future__ import annotations
