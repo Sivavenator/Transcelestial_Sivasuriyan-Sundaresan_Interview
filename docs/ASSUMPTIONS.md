@@ -37,10 +37,23 @@ leftmost/topmost pixel).
   ``sigma_x``/``sigma_y`` — not yet needed, so not yet built.
 
 **``flux`` is the total signal integrated over an infinite window.**
-- Why: this is the natural unit for "how much light is in the spot," and it
-  makes the renderer's output additive and easy to reason about (e.g. flux
-  in electrons, straightforwardly convertible from photons via quantum
-  efficiency later).
+- What it actually is: the total signal from the laser spot, **summed across
+  the whole spot** — not any single pixel's brightness, the sum over every
+  pixel the spot touches. ``render_spot(..., flux=1000.0, ...)`` means "this
+  spot carries 1000 electrons total"; the Gaussian shape then decides how
+  that total gets split across pixels (the centre pixel gets the biggest
+  share, via ``pixel_response_1d``'s fractions, with less further out).
+- Why this unit and not, say, "peak pixel brightness": it's the natural
+  physical quantity — in a real system, flux is what ultimately falls out of
+  laser power, distance/atmospheric loss, optics collection efficiency,
+  exposure time, and sensor quantum efficiency, all collapsed into one
+  number: how many electrons landed on the sensor this frame. It also makes
+  the renderer's output additive and easy to reason about.
+- Why it matters for noise: flux directly sets the photon-noise floor — each
+  pixel's own share of the flux becomes *that pixel's* Poisson `lambda`, so
+  a bigger total flux means every pixel gets more photons, which (per the CV
+  derivation in `sensor.py`) means better relative precision everywhere, not
+  just a brighter-looking image.
 - Consequence: a *finite* rendered window always captures slightly less than
   the full ``flux`` — the far Gaussian wings fall outside the window. Not yet
   an issue at the window sizes tested (25×25 around ``sigma=1.75``, which
