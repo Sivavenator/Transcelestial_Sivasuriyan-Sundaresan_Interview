@@ -1,19 +1,62 @@
 """Gaussian point-spread function, rendered by exact pixel integration.
 
-A camera pixel does not sample light at a single point; it integrates
-irradiance over its whole area. For a spot with a Gaussian intensity
-profile, that integral has a closed form using the error function, so we
-compute it exactly rather than approximating it by sampling the Gaussian at
-each pixel's centre.
+THE CONTEXT: RENDERING A SOFT SPOT (LIKE A LIGHT, OR BLUR)
+------------------------------------------------------------
+When a circular spot of light lands on a sensor, each pixel should receive an
+amount of light proportional to how much of the Gaussian "falls" on that
+pixel's area -- not a single sampled value.
 
-Why this matters: sampling at the centre is wrong by an amount that depends
-on exactly where the spot sits within a pixel. That position-dependent error
-shows up later as "pixel locking" -- a bias that is worst when the spot sits
-between two pixel centres and vanishes when it sits on one. Since we need
-sub-pixel precision, we cannot afford a method whose error depends on the
-very sub-pixel offset we are trying to measure. Integrating exactly costs
-one call to `erf` per pixel edge instead of one call to `exp`, so there is
-no real cost tradeoff either.
+THE NAIVE APPROACH -- SAMPLING
+-------------------------------
+The simple way: evaluate the Gaussian at the centre of each pixel and use
+that as the pixel's brightness. This is only an approximation -- the
+Gaussian can vary rapidly across a pixel's area (especially when the spot is
+only a few pixels wide), so the centre value is not representative of the
+whole pixel.
+
+THE BETTER APPROACH -- INTEGRATING
+-------------------------------------
+What we actually want is the *average* intensity across the entire pixel
+area: the Gaussian integrated over that pixel's 2-D footprint.
+
+    pixel value = double_integral_over_pixel  G(x, y) dx dy
+
+WHY THE ERROR FUNCTION SAVES US
+----------------------------------
+A Gaussian has no elementary antiderivative, but its *definite* integral
+between two bounds does have a closed form, expressed with the error
+function (erf):
+
+    integral_a^b  exp(-x^2) dx   is proportional to   erf(b) - erf(a)
+
+A 2-D Gaussian is separable, G(x, y) = G(x) * G(y), so the 2-D integral over
+a rectangular pixel factors into two independent 1-D erf evaluations:
+
+    pixel value = [erf(x2) - erf(x1)] * [erf(y2) - erf(y1)]
+
+where (x1, x2) and (y1, y2) are the pixel's left/right and top/bottom edges.
+
+THE PAYOFF
+------------
+* Exact, not approximate -- no sampling error at all.
+* Fast -- a handful of `erf()` calls per pixel, no supersampling needed.
+* Matters most exactly when it matters most: a narrow, sub-pixel-sized spot,
+  where centre-sampling would be wildly inaccurate.
+
+Because the Gaussian's integral has a known, computable form via `erf`, we
+get the exact pixel brightness analytically instead of guessing from a
+single sampled value.
+
+WHY THIS MATTERS FOR US SPECIFICALLY
+---------------------------------------
+Centre-sampling is wrong by an amount that depends on exactly where the spot
+sits within a pixel. That position-dependent error shows up later as "pixel
+locking" -- a bias that is worst when the spot sits between two pixel
+centres and vanishes when it sits on one. Since we need sub-pixel precision,
+we cannot afford a method whose error depends on the very sub-pixel offset
+we are trying to measure. Integrating exactly costs one call to `erf` per
+pixel edge instead of one call to `exp`, so there is no real cost tradeoff
+either.
 """
 
 from __future__ import annotations
