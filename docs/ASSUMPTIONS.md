@@ -187,6 +187,46 @@ sensor's defect rate (more like 1e-5 to 1e-3).**
 
 ---
 
+## Scene (`sptrack/scene.py`)
+
+**Background gradient is modelled as a linear (planar) tilt, not a more
+elaborate sky-radiance model.**
+- Why: a full physical sky-radiance model is its own research project. A
+  linear gradient is the simplest model that is still genuinely
+  non-uniform, and captures the dominant leading-order effect — any smooth
+  background variation looks approximately linear if you zoom into a field
+  of view a few tens of pixels wide, the relevant scale here. Curvature
+  would be the natural next refinement, not a first one.
+
+**`gradient_frac` is defined relative to normalised coordinates ([-1, 1]
+per axis), and its exact peak-to-peak meaning is angle-dependent.**
+- For an axis-aligned gradient (angle = 0 or pi/2), `gradient_frac` gives
+  *exactly* that fraction of `mean_level` peak-to-peak, edge to edge —
+  verified directly in `test_axis_aligned_gradient_peak_to_peak_matches_gradient_frac`.
+  For a diagonal angle, the true corner-to-corner peak-to-peak can be up to
+  `sqrt(2)` times that, since the gradient is a sum of two axis projections.
+  Stated explicitly here rather than left as a silent surprise, since
+  "gradient_frac" alone doesn't fully pin down the peak-to-peak spread once
+  the angle stops being axis-aligned.
+
+**Background is treated as a *mean* contribution, summed with the spot's
+mean image and run through one shared `add_photon_noise` call — not drawn
+as its own independent noise source, unlike dark current.**
+- Why the different treatment from dark current: dark current is kept
+  separate specifically so it can be individually addressed later (a real
+  system can capture a shutter-closed "dark frame" for calibration).
+  Background has no equivalent — there's no way to capture a
+  "background-only, spot-off" reference frame in a real deployment, so
+  there's no calibration reason to keep it distinct. It belongs with the
+  signal from the moment it exists.
+- This module lives separately from `sensor.py` for a related but distinct
+  reason: it isn't a sensor *imperfection* at all, it's real light entering
+  the system, the same conceptual category as the tracked spot itself
+  (`psf.py`). "What's in the scene" and "how the sensor mangles it" are kept
+  as separate concerns.
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*

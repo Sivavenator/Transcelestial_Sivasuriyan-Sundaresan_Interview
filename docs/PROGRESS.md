@@ -18,7 +18,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Gaussian read noise | DONE | `sptrack/sensor.py::add_read_noise`; `tests/test_sensor.py` (pooled mean/variance match Gaussian statistics, noise magnitude independent of signal brightness, reproducible with seed) |
 | Dark current | DONE | `sptrack/sensor.py::add_dark_current`; `tests/test_sensor.py` (pooled Poisson statistics, scales linearly with exposure time, additivity with photon noise verified directly, reproducible) |
 | Hot pixels | DONE | `sptrack/sensor.py::generate_hot_pixel_mask`, `add_hot_pixels`; `tests/test_sensor.py` (mask fraction correct, mask is fixed not per-frame, unmasked pixels exactly untouched, elevated-rate Poisson statistics) |
-| Non-uniform background gradient | NOT STARTED | |
+| Non-uniform background gradient | DONE | `sptrack/scene.py::render_background_gradient`; `tests/test_scene.py` (flat when frac=0, mean preserved regardless of angle, axis-aligned peak-to-peak matches gradient_frac exactly, direction verified) |
 | Pixel-gain non-uniformity (PRNU) | NOT STARTED | |
 | Bit-depth quantization | NOT STARTED | |
 | SNR control (sweepable) | NOT STARTED | |
