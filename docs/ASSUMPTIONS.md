@@ -49,5 +49,26 @@ leftmost/topmost pixel).
 
 ---
 
-*(This document will grow as each new part of the simulator — noise, SNR
-control, dynamic tracking, etc. — introduces its own assumptions.)*
+## Noise chain (`sptrack/sensor.py`)
+
+**Randomness is caller-supplied, via `numpy.random.Generator`, never a
+module-global seed.**
+- Why: the brief's own "strong submission" bar requires Monte Carlo
+  characterization and exact reproducibility. A caller-supplied generator
+  means every experiment controls its own seed explicitly and a re-run is
+  bit-exact, whereas a hidden global RNG state makes runs order-dependent
+  and silently unreproducible.
+
+**Noise sources are separate functions, applied one at a time, not one
+combined "add all noise" call.**
+- Why: each has a different physical origin and the brief asks for each to
+  be individually configurable (e.g. sweeping SNR should not require also
+  touching dark current). Keeping them separate also means each can be
+  unit-tested against its own known statistical signature (e.g. photon
+  noise: `Var[N] = E[N]`) in isolation.
+
+---
+
+*(This document will grow as each new part of the simulator — remaining
+noise sources, SNR control, dynamic tracking, etc. — introduces its own
+assumptions.)*
