@@ -1,0 +1,12 @@
+{
+  "injected_freq_hz": 20.0,
+  "injected_amp_px": 0.3,
+  "detected_freq_hz": 20.01953125,
+  "detected_amp_px": 0.3001277952885694,
+  "freq_resolution_hz": 0.244140625,
+  "freq_err_hz": 0.01953125,
+  "amp_err_px": 0.00012779528856943223,
+  "amp_err_pct": 0.04259842952314408,
+  "detected_freq_hz_ground_truth": 20.01953125,
+  "detected_amp_px_ground_truth": 0.30087454495000604
+}

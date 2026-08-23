@@ -1062,5 +1062,58 @@ static spot.
 
 ---
 
+## Dynamic tracking: disturbance detection (§3, part 3)
+
+Full reasoning lives in `sptrack/disturbance.py`'s module docstring; this
+section summarises, including a real methodological wrong-turn caught by
+testing.
+
+**Why a Hann window, and why the low-frequency band is excluded from the
+peak search.** The recovered trajectory is not periodic within the
+capture window (drift doesn't return to its start), so a plain FFT sees
+an artificial discontinuity at wrap-around that leaks energy across the
+whole spectrum. A Hann window removes that. Separately, drift's own power
+(1/f^2, concentrated at the lowest frequencies) can still dominate a
+naive "biggest peak wins" search even after windowing — `exclude_below_hz`
+removes that region from the search, grounded directly in the spectral
+separation already demonstrated in `figures/exp03a_trajectory_diagnostic.png`.
+`tests/test_disturbance.py::test_low_frequency_exclusion_prevents_drift_like_power_from_masquerading_as_the_disturbance`
+proves this matters, not just plausible-sounding: without the exclusion, a
+synthetic strong low-frequency component wins the peak search over a real
+higher-frequency tone; with it, the real tone wins.
+
+**A wrong turn, caught before it shipped: summing energy across the
+leaked lobe overestimates amplitude.** Because the disturbance frequency
+doesn't land exactly on an FFT bin (20 Hz at this resolution is bin
+81.92, not an integer), some of its energy leaks into neighbouring bins.
+The intuitive fix — sum amplitude (or RSS-combine) across a few bins
+around the peak to recover that leaked energy — was prototyped and
+directly tested against a known-amplitude tone before being trusted: it
+overestimated the true amplitude by 20-100%, because it also sums in the
+window function's own non-zero sidelobes as though they were independent
+signal, double-counting energy a single well-corrected peak-bin reading
+already mostly captures. The simpler alternative (single peak bin,
+corrected by the Hann window's coherent gain, `2*|X|/sum(window)`) was
+tested the same way and recovers the true amplitude to within 0.4% even
+off-bin. This is a direct instance of the project's standing rule —
+verify a claim numerically before trusting it — catching a genuinely
+wrong intuition (more bins = more signal recovered) rather than a
+correct one.
+
+**Result, and what it isolates.** On the default (easy) scenario:
+frequency detected 20.02 Hz vs. injected 20.00 Hz (19.5 mHz error, inside
+the FFT's own 244 mHz bin resolution); amplitude detected 0.3001 px vs.
+injected 0.3000 px (+0.04%). Running the identical detector on GROUND
+TRUTH instead of the recovered trajectory gives essentially the same
+answer (20.02 Hz, 0.3009 px) — confirming the small remaining error is
+close to the detection method's own inherent floor (matching the <1%
+error already measured on a clean synthetic tone), not something the
+Gaussian-fit recovery step (part 2) is adding. That separation matters:
+it says a worse result on a harder scenario (planned next) can be
+attributed to the SCENARIO being harder, not to some hidden weakness in
+the detection method uncovered only now.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
