@@ -381,6 +381,61 @@ because SNR appears both linearly (numerator) and inside a square root
 
 ---
 
+## Full-chain assembly (`sptrack/simulate.py`)
+
+**PRNU is applied to the spot + background BEFORE photon noise, dark
+current, and hot pixels are added — not at the very end of the chain.**
+- Why: this is the order the physics actually requires, not an arbitrary
+  pipeline choice. PRNU is a property of the photon-to-electron conversion
+  pathway, so it can only apply to light that passes through that pathway —
+  the spot and background. Dark current and hot-pixel electrons are
+  generated directly in the silicon and never pass through it, so applying
+  PRNU after adding them would incorrectly scale noise sources it has no
+  physical claim on (see `sensor.py`'s PRNU section for the full reasoning;
+  this module is where that reasoning actually gets enforced in the
+  pipeline order).
+
+**`Simulator` defaults every noise parameter to a modest, non-zero value —
+nothing defaults to "off."**
+- Why: a bare `Simulator(shape=(25, 25))` should still produce a realistic
+  frame. If any source silently defaulted to zero, it would be easy to
+  accidentally characterise an estimator against a simulator quieter than
+  reality without noticing — the opposite of the brief's "results that are
+  quantified and compared" bar.
+
+**The three FIXED per-unit properties (true sigma, hot-pixel mask, PRNU
+map) are generated once in `__init__`, not regenerated per `render()`
+call.**
+- Why: this is a straightforward continuation of a pattern already
+  established and tested for each piece individually — a manufacturing
+  defect or a lens's true focus doesn't reset itself between frames.
+  Verified directly that `Simulator` doesn't violate this
+  (`test_fixed_unit_properties_persist_across_renders`): the same mask, map,
+  and sigma survive multiple `render()` calls unchanged.
+
+**The end-to-end validation isolates the chain by setting `flux=0`,
+`hot_fraction=0`, and `prnu_sigma=0`, rather than trying to predict the
+statistics of a full frame with everything enabled.**
+- Why: with the spot removed, only background + dark current + read noise +
+  quantization remain — a combination this project can still predict
+  exactly from formulas already derived and individually verified
+  (background/dark: Poisson, `Var=mean`; read noise: fixed `sigma_read^2`;
+  quantization: `gain^2/12`). Disabling the two FIXED per-unit effects
+  removes unpredictable per-pixel structure that would need its own
+  separate accounting rather than adding real coverage. This is the
+  narrowest slice of the chain that still proves the pieces compose
+  correctly in the right order — a full frame with a spot, PRNU, and hot
+  pixels enabled would be a good visual demonstration (and one exists,
+  `docs/sanity_check_simulator.png`) but a poor *statistical* test, since
+  there'd be no simple closed-form prediction to check it against.
+- The variance tolerance in `test_full_chain_statistics_match_the_combined_noise_budget`
+  is a pragmatic 5% relative bound, not a derived standard error, stated as
+  such in the test's own comment — the combined distribution mixes Poisson,
+  Gaussian, and uniform sources, and deriving an exact standard error for
+  that mixture's sample variance is not worth the complexity here.
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*
