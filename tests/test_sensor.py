@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sptrack.sensor import add_photon_noise, add_read_noise
+from sptrack.sensor import add_dark_current, add_photon_noise, add_read_noise
 
 
 def test_photon_noise_mean_and_variance_match_poisson_statistics():
@@ -129,4 +129,84 @@ def test_read_noise_is_reproducible_with_same_seed():
     image = np.full((5, 5), 100.0)
     a = add_read_noise(image, 5.0, np.random.default_rng(11))
     b = add_read_noise(image, 5.0, np.random.default_rng(11))
+    assert np.array_equal(a, b)
+
+
+def test_dark_current_mean_and_variance_match_poisson_statistics():
+    rng = np.random.default_rng(5)
+
+    # dark_rate_e_per_s=500, exposure_s=1.0 gives mean_dark=500 -- deliberately
+    # the same lambda as the photon-noise test above, since dark current is
+    # the identical Poisson mechanism (just thermally- rather than
+    # optically-generated electrons), so the same n_trials=5000 derivation
+    # for a ~1-count pooled-variance standard error applies unchanged.
+    dark_rate_e_per_s = 500.0
+    exposure_s = 1.0
+    mean_dark = dark_rate_e_per_s * exposure_s
+    image = np.zeros((10, 10))
+
+    n_trials = 5000
+    samples = np.stack(
+        [add_dark_current(image, dark_rate_e_per_s, exposure_s, rng) for _ in range(n_trials)]
+    )
+    pooled = samples.ravel()
+
+    assert pooled.mean() == pytest.approx(mean_dark, abs=1.0)
+    assert pooled.var() == pytest.approx(mean_dark, abs=10.0)
+
+
+def test_dark_current_scales_with_exposure_time():
+    # Doubling exposure time should double the mean dark charge -- this is
+    # the whole reason exposure_s is a parameter rather than folded into a
+    # fixed rate.
+    rng = np.random.default_rng(6)
+    dark_rate_e_per_s = 1000.0
+    image = np.zeros((10, 10))
+    n_trials = 2000
+
+    short = np.stack(
+        [add_dark_current(image, dark_rate_e_per_s, 0.1, rng) for _ in range(n_trials)]
+    )
+    long = np.stack(
+        [add_dark_current(image, dark_rate_e_per_s, 0.2, rng) for _ in range(n_trials)]
+    )
+
+    assert long.ravel().mean() == pytest.approx(2 * short.ravel().mean(), rel=0.05)
+
+
+def test_dark_current_plus_photon_noise_variance_adds_by_poisson_additivity():
+    # Validates the docstring's mathematical claim directly: applying photon
+    # noise to a signal, then adding independent dark-current Poisson noise,
+    # should give a TOTAL variance equal to signal + mean_dark -- because
+    # Poisson(a) + Poisson(b) is distributed as Poisson(a+b). If this test
+    # failed, the docstring's justification for treating dark current as a
+    # separate function (rather than combining means first) would be wrong.
+    rng = np.random.default_rng(9)
+    signal = 300.0
+    dark_rate_e_per_s = 200.0
+    exposure_s = 1.0
+    mean_dark = dark_rate_e_per_s * exposure_s
+    image = np.full((10, 10), signal)
+
+    n_trials = 5000
+    totals = np.stack(
+        [
+            add_dark_current(
+                add_photon_noise(image, rng), dark_rate_e_per_s, exposure_s, rng
+            )
+            for _ in range(n_trials)
+        ]
+    )
+    pooled = totals.ravel()
+
+    expected_mean = signal + mean_dark
+    expected_var = signal + mean_dark  # Poisson: Var = mean, for the combined process
+    assert pooled.mean() == pytest.approx(expected_mean, abs=1.5)
+    assert pooled.var() == pytest.approx(expected_var, abs=15.0)
+
+
+def test_dark_current_is_reproducible_with_same_seed():
+    image = np.full((5, 5), 0.0)
+    a = add_dark_current(image, 500.0, 1.0, np.random.default_rng(13))
+    b = add_dark_current(image, 500.0, 1.0, np.random.default_rng(13))
     assert np.array_equal(a, b)

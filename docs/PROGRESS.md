@@ -16,7 +16,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Gaussian PSF spot renderer, known sub-pixel position | DONE | `sptrack/psf.py`; `tests/test_psf.py` (flux conserved, centroid matches injected position to 1e-7 px) |
 | Photon (Poisson) noise | DONE | `sptrack/sensor.py::add_photon_noise`; `tests/test_sensor.py` (pooled mean/variance match Poisson statistics, reproducible with seed, non-negative integer counts) |
 | Gaussian read noise | DONE | `sptrack/sensor.py::add_read_noise`; `tests/test_sensor.py` (pooled mean/variance match Gaussian statistics, noise magnitude independent of signal brightness, reproducible with seed) |
-| Dark current | NOT STARTED | |
+| Dark current | DONE | `sptrack/sensor.py::add_dark_current`; `tests/test_sensor.py` (pooled Poisson statistics, scales linearly with exposure time, additivity with photon noise verified directly, reproducible) |
 | Hot pixels | NOT STARTED | |
 | Non-uniform background gradient | NOT STARTED | |
 | Pixel-gain non-uniformity (PRNU) | NOT STARTED | |

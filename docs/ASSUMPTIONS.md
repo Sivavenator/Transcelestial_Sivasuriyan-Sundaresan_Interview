@@ -120,6 +120,29 @@ combined "add all noise" call.**
   `n_total = n_trials * 100 pixels`: `0.25 = 25 * sqrt(2 / n_total)` solves
   to `n_total = 20,000`, so `n_trials = 200`.
 
+**Dark current is drawn as its own independent Poisson noise, not folded
+into the mean image before one combined draw.**
+- Why this is valid, not just convenient: `Poisson(a) + Poisson(b)` is
+  distributed as `Poisson(a + b)` for independent Poisson variables, so the
+  two approaches give mathematically identical results. Verified directly
+  in `test_dark_current_plus_photon_noise_variance_adds_by_poisson_additivity`
+  rather than just asserted.
+- Why we still keep it separate despite the equivalence: matches the
+  established pattern (individually configurable, individually testable),
+  and a later dark-frame calibration study needs dark current to be a
+  distinct, addressable quantity.
+
+**Dark-current test uses `dark_rate_e_per_s = 500`, `exposure_s = 1.0`
+(mean_dark = 500) — deliberately the same lambda as the photon-noise test.**
+- Why: dark current is the *same* Poisson mechanism as photon noise (random
+  independent electron-generation events at a constant rate), just thermally
+  rather than optically sourced, so the identical `n_trials = 5000`
+  derivation for a tight pooled-variance standard error applies unchanged —
+  no need to re-derive it. Note this combination is chosen for a clean,
+  testable statistic, not because it's a realistic exposure/rate pair; real
+  sub-millisecond exposures at room temperature make dark current far
+  smaller than this in practice (see the sensor.py docstring).
+
 ---
 
 *(This document will grow as each new part of the simulator — remaining

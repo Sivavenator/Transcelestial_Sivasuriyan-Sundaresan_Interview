@@ -86,6 +86,49 @@ over. Total noise combines the two in quadrature (independent sources, so
 variances add):
 
     Var[total] = signal + sigma_read^2
+
+DARK CURRENT
+---------------
+Even with the shutter closed, a sensor pixel accumulates a small number of
+electrons from pure thermal energy: heat randomly kicks electrons across the
+semiconductor bandgap, generating electron-hole pairs indistinguishable from
+ones a photon would have generated. This has nothing to do with light.
+
+The mean number of dark electrons collected grows linearly with exposure
+time and roughly doubles every 6-8 degC (an Arrhenius-type dependence on
+temperature) -- both are why it is configurable here rather than a fixed
+constant:
+
+    mean_dark = dark_rate_e_per_s * exposure_s
+
+Because dark-electron generation is, like photon detection, a sequence of
+independent random events at a constant average rate, it is ALSO a Poisson
+process, with the identical defining property:
+
+    Var[N_dark] = E[N_dark] = mean_dark
+
+WHY DARK CURRENT IS DRAWN AS ITS OWN POISSON NOISE, NOT FOLDED INTO THE MEAN
+-------------------------------------------------------------------------------
+A cleaner-looking pipeline might add ``mean_dark`` directly into the spot's
+mean image and apply photon noise once, on the combined total. That would
+actually give the identical result, by a basic property of the Poisson
+distribution: the sum of two independent Poisson random variables is itself
+Poisson with the summed rate,
+
+    Poisson(a) + Poisson(b)   is equal in distribution to   Poisson(a + b)
+
+So drawing dark current as its own independent Poisson noise and adding it
+to an already photon-noised signal is mathematically equivalent to combining
+the means first and drawing once. We keep it as a separate function anyway,
+for the same reason as read noise: the brief asks for each source to be
+individually configurable, and a later calibration study (subtracting a
+"dark frame") needs dark current to be a distinct, addressable quantity
+rather than baked silently into the signal.
+
+Dark current is often negligible at these exposure times (sub-millisecond,
+to hit 1 kHz) and room temperature, but grows fast with either a longer
+exposure or a hotter sensor -- which is exactly why it needs to be
+simulated rather than assumed away.
 """
 
 from __future__ import annotations
@@ -115,3 +158,24 @@ def add_read_noise(
     stay non-negative; that pedestal is a separate, later concern).
     """
     return image + rng.normal(0.0, sigma_read, size=image.shape)
+
+
+def add_dark_current(
+    image: np.ndarray,
+    dark_rate_e_per_s: float,
+    exposure_s: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Add Poisson-distributed dark current electrons to an image.
+
+    ``dark_rate_e_per_s`` is the sensor's dark-current rate (electrons per
+    pixel per second, temperature-dependent in reality but a fixed input
+    here); ``exposure_s`` is the exposure time. The mean dark charge per
+    pixel is ``dark_rate_e_per_s * exposure_s``, drawn as its own Poisson
+    noise and added to ``image`` -- mathematically equivalent to adding the
+    mean into the signal before a single combined Poisson draw, since
+    Poisson(a) + Poisson(b) is distributed as Poisson(a + b).
+    """
+    mean_dark = dark_rate_e_per_s * exposure_s
+    dark_electrons = rng.poisson(mean_dark, size=image.shape).astype(np.float64)
+    return image + dark_electrons
