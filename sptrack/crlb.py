@@ -1,8 +1,89 @@
 """The Cramer-Rao Lower Bound: the theoretical precision floor no unbiased
 estimator can beat, for this exact forward model.
 
-WHY THIS REUSES gaussian_fit.py'S JACOBIAN, NOT A SEPARATE DERIVATION
----------------------------------------------------------------------------
+THE CORE IDEA: FISHER INFORMATION
+--------------------------------------
+Before the bound itself, one concept: Fisher Information, I(theta) -- a
+measure of how much the data tells you about a parameter theta (here,
+theta = the spot's sub-pixel position). Defined as:
+
+    I(theta) = E[ (d/d(theta) log L(data; theta))^2 ]
+
+where L is the likelihood -- the probability of seeing this particular
+noisy data, given the true parameter value.
+
+Intuition: if a tiny shift in theta produces a big change in what data you
+would expect to see (a steep likelihood), the data pins theta down
+tightly -- high information. If shifting theta barely changes anything
+about what you would observe (a flat likelihood), the data cannot
+distinguish nearby values of theta -- low information.
+
+THE BOUND ITSELF
+---------------------
+    Var(theta_hat) >= 1 / I(theta)          for ANY unbiased estimator
+
+This is the punchline: no matter how clever the estimator -- centroid,
+Gaussian fit, matched filter, a neural network, anything -- its variance
+can never beat 1/I(theta). It is a hard mathematical floor derived from
+the structure of the noise itself, not a property of any particular
+algorithm.
+
+SPECIALISING TO OUR PIXEL DATA
+-----------------------------------
+Each pixel i has an expected brightness mu_i(theta) -- exactly
+`render_spot`'s output -- with Poisson noise on top (Var[n_i] = mu_i).
+Working through the log-likelihood and its derivative for Poisson data
+gives a clean, standard result:
+
+    I(theta) = sum_i  (d(mu_i)/d(theta))^2 / mu_i
+
+This is exactly why `pixel_response_1d_with_derivative` (psf.py) exists:
+d(mu_i)/d(theta) is how much pixel i's expected brightness changes as the
+spot's position shifts, which is precisely what that function computes.
+Each pixel's contribution to the total information is (how steeply its
+brightness changes with position)^2 divided by (its own noise variance).
+
+If read noise is also present (a fixed variance sigma_read^2 per pixel, on
+top of the Poisson variance), the formula generalises to:
+
+    I(theta) = sum_i  (d(mu_i)/d(theta))^2 / (mu_i + sigma_read^2)
+
+matching the same "total variance = signal + sigma_read^2" combination
+used everywhere else in this project (sensor.py's read-noise section,
+gaussian_fit.py's weighting).
+
+WHY THIS FORMULA MAKES PHYSICAL SENSE: SLOPE MATTERS, NOT BRIGHTNESS
+--------------------------------------------------------------------------
+Pixels on the steep slopes of the Gaussian (roughly one sigma away from
+centre, where brightness changes fastest with position) contribute the
+most information. Pixels at the exact peak, or far out in the flat wings,
+contribute little -- even though the peak pixel carries the most SIGNAL,
+its brightness barely changes if the spot nudges a hair sideways, because
+it sits at the top of the curve where the slope is nearly flat. Signal
+alone is not information; the RATE OF CHANGE of signal with position is.
+
+THE BOUND, AND A SANITY CHECK AGAINST WHAT WAS ALREADY DERIVED ELSEWHERE
+--------------------------------------------------------------------------------
+    CRLB(theta) = 1 / I(theta)
+
+and its square root is the theoretical minimum achievable standard
+deviation -- the precision floor the brief explicitly asks to compare
+estimators against.
+
+A useful consistency check: in the pure photon-noise limit,
+mu_i = flux * (a fixed shape), so d(mu_i)/d(theta) scales linearly with
+flux too. That makes (d(mu_i)/d(theta))^2 scale as flux^2, while the
+denominator mu_i scales as flux -- so I(theta) overall scales as
+flux^2 / flux = flux. That means CRLB = 1/I(theta) is proportional to
+1/flux, and the standard deviation is proportional to 1/sqrt(flux) --
+reproducing exactly the SNR = sqrt(lambda) scaling already derived in
+sensor.py from the much simpler coefficient-of-variation argument. Two
+completely different derivations landing on the same square-root law is a
+good sign neither was a fluke.
+
+GENERALISING TO THE FULL 4-PARAMETER CASE, AND WHY THIS REUSES
+gaussian_fit.py'S JACOBIAN RATHER THAN A SEPARATE DERIVATION
+--------------------------------------------------------------------------
 Three things need to agree with each other, or the whole characterisation
 that follows is meaningless: the SIMULATOR that renders frames, the
 ESTIMATOR that fits a model to them, and the BOUND that says how well any
@@ -14,11 +95,10 @@ SAME Jacobian (`psf.pixel_response_1d_with_derivative`) and the SAME
 Gaussian-approximated-Poisson variance model (`mu + read_var`) that
 `gaussian_fit.py` already uses -- structurally, not just by coincidence.
 
-THE MATH: FISHER INFORMATION, THEN INVERT
-----------------------------------------------
-For a set of independent, approximately-Gaussian-distributed pixel
-measurements (variance var_i, mean mu_i(theta)), the Fisher Information
-Matrix for the parameter vector theta = (x0, y0, flux, bg) is:
+With four free parameters theta = (x0, y0, flux, bg) instead of one, the
+scalar I(theta) above generalises to a Fisher Information MATRIX, each
+entry built the same way (now cross-multiplying two different parameters'
+derivatives instead of squaring one):
 
     FIM[j, k] = sum_i  ( d(mu_i)/d(theta_j) * d(mu_i)/d(theta_k) ) / var_i
 
