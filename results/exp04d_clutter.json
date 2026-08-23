@@ -1,0 +1,35 @@
+{
+  "true_xy": [
+    20.3,
+    19.7
+  ],
+  "true_flux": 3000.0,
+  "clutter_xy": [
+    45.0,
+    40.0
+  ],
+  "clutter_flux": 40000.0,
+  "clutter_sigma": 5.0,
+  "brightest_pixel_pick": [
+    45,
+    40
+  ],
+  "shape_matched_pick": [
+    20.0,
+    20.0
+  ],
+  "candidates": [
+    {
+      "x": 20,
+      "y": 20,
+      "peak_value": 177.46618928768322,
+      "shape_score": 0.9840532647751951
+    },
+    {
+      "x": 45,
+      "y": 40,
+      "peak_value": 283.8010595464799,
+      "shape_score": 0.6900383180646104
+    }
+  ]
+}

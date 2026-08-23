@@ -1346,5 +1346,59 @@ place to stop rather than open a third nested investigation.
 
 ---
 
+## Real-world conditions, continued: clutter and glare mitigations
+
+Full reasoning lives in `sptrack/acquisition.py` and
+`sptrack/estimators/base.py::planar_background`'s own docstrings; this
+section summarises the two conditions that got a real, verified
+mitigation built, not just a demonstrated failure.
+
+**Background clutter: why shape, not brightness, is the discriminator.**
+A real non-laser source does not need MORE total flux than the laser spot
+to win a brightest-pixel acquisition — it only needs comparable or higher
+PEAK brightness, and peak brightness for a Gaussian-like source scales as
+flux/(2*pi*sigma^2). A source with 13x the true spot's total flux but a
+much wider (non-diffraction-limited) profile can still have a lower peak
+— checked directly: the first prototype used a clutter flux that
+actually had a LOWER peak than the true spot despite more total flux,
+failing to demonstrate the failure mode at all, until the clutter flux
+was raised enough to win on peak brightness too. The mitigation
+(`acquire_target`) ranks candidates by Pearson correlation against the
+known, assumed PSF template — scale-invariant, so it discriminates by
+shape alone, which the real laser source has and generic clutter does
+not reliably share.
+
+**Solar glare: why the scalar background estimate's failure is
+structural, not a bad estimate.** Checked directly before assuming
+anything: `border_median_background`'s scalar reads the TRUE background
+value at the window's centre almost exactly (agreement to ~0.002
+electrons) even under a strong gradient — the median statistic itself is
+not the problem. The real mechanism is that subtracting one CONSTANT
+from a window whose true background genuinely VARIES leaves a real
+residual gradient in the "background-subtracted" image, growing from
+~zero at the centre toward the edges, and the centroid's weighted average
+responds to that residual as if it were real signal — a measured bias of
+0.3-2.5 px across the tested gradient range, far larger than almost any
+other systematic bias characterised anywhere else in this project. The
+planar-fit mitigation works because it removes the gradient's linear
+structure EVERYWHERE in the window at once (not just estimates it
+accurately at one point), which is why its own residual bias stays flat
+at the noise floor across the entire swept range rather than merely being
+smaller.
+
+**Why these two mitigations were built (unlike fog and beam wander,
+which were only characterised).** Fog/rain's only real mitigation is
+system-level (more power, more margin) — nothing in this codebase can
+invent missing photons. Beam wander cannot be separated from mechanical
+jitter using position data alone (both need an independent sensor, e.g.
+an IMU, to disambiguate) — no purely algorithmic fix exists to build.
+Clutter and glare are different: both have a real, purely algorithmic fix
+available (shape-based ranking; a richer background model) that reuses
+machinery already built elsewhere in this project (the matched-filter
+template idea; least-squares fitting), so building and verifying the fix
+was the more complete answer than stopping at "here is the problem."
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
