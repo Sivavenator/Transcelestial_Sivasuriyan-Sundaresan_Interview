@@ -1186,5 +1186,67 @@ works for every possible disturbance frequency.
 
 ---
 
+## Real-world conditions: scintillation (§4)
+
+Full analysis of all five identified conditions lives in
+`docs/REAL_WORLD_CONDITIONS.md`; full modelling reasoning lives in
+`sptrack/scintillation.py`'s module docstring. This section summarises
+the one condition that got implemented, not just analysed, per the
+brief's own instruction that analysis quality matters more here than
+implementation.
+
+**Why a mean-reverting (AR(1)/OU) log-normal process, not a random walk.**
+Slow drift (§3) was deliberately modelled as a random walk because
+thermal creep genuinely accumulates without bound. Scintillation is
+physically different — it fluctuates around a stable long-run mean flux
+and never wanders away permanently — so it needed a STATIONARY process,
+not a non-stationary one. Using the wrong kind of process here would have
+been the same category of mistake already avoided once in this project
+(picking a model for its mathematical convenience rather than its actual
+physical behaviour).
+
+**Why correlated, not independent per frame.** Turbulent eddies take real
+time to cross the beam path; the chosen coherence time (5 ms) is
+comparable to, not much faster than, the 1 ms frame period, so several
+consecutive frames genuinely fade or peak together. This was checked
+directly (autocorrelation at several lags matches AR(1) theory to within
+0.03 — `tests/test_scintillation.py`), not just asserted.
+
+**Why sigma_ln=0.4 (module default) but sigma_ln=0.6 for the
+demonstration experiment.** No site-specific turbulence data exists for
+an actual deployment, so both are honest assumptions grounded in
+published FSO-scintillation-index ranges, not derivations. The module's
+own default (0.4) represents moderate turbulence and, layered on a
+workable baseline SNR, was measured to degrade precision without ever
+causing a dropout (0 failed fits at base_snr=20). The demonstration
+experiment deliberately used a stronger value (0.6, representing a worse
+day of turbulence — still within literature-plausible bounds, the upper
+end rather than the middle) specifically because a genuine loss-of-lock
+demonstration needed a genuine loss of lock to show, found by direct
+experimentation rather than assumed to exist at the moderate setting.
+
+**Result.** With base_snr=5.0 (matching §3's own hard-scenario choice)
+and sigma_ln=0.6: overall position-error std is 1.7x worse with
+scintillation than steady flux (227 vs 137 millipixels); std during deep
+fades (flux multiplier < 0.5, 890 of 4096 frames) is 5.1x worse than
+during peaks (multiplier > 1.5, 617 frames) — 391 vs 77 millipixels,
+confirming precision tracks the INSTANTANEOUS fade, not just the average
+flux, exactly as §2c's SNR-vs-precision relationship predicts. 25 of 4096
+frames were a genuine loss of lock (`ok=False`), versus 0 with steady
+flux at the same average SNR — real dropouts caused specifically by
+scintillation's correlated fades, not just added scatter.
+
+**A genuine, honestly-stated coincidence, not a designed fix.** Those 25
+dropouts never derail the recovered trajectory, because §3's dead-
+reckoning (`sequence.py::recover_trajectory`, built to survive an
+isolated bad frame for an unrelated reason) already has exactly the right
+shape of mitigation: a failed frame holds the last known-good position
+rather than corrupting the track. This works here because the tested
+fades are still short (a handful of frames) relative to the trajectory's
+own slower dynamics — worth stating as a lucky structural fit found
+after the fact, not a mitigation purpose-built for scintillation.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*

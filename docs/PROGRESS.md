@@ -72,11 +72,11 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Conditions identified (outdoor/uncontrolled) | NOT STARTED | |
-| Each: how it shows up in image | NOT STARTED | |
-| Each: what it does to the estimate | NOT STARTED | |
-| Each: how to detect + handle | NOT STARTED | |
-| Scintillation specifically addressed | NOT STARTED | |
+| Conditions identified (outdoor/uncontrolled) | DONE | `docs/REAL_WORLD_CONDITIONS.md` — 5 conditions: atmospheric scintillation, beam wander, background clutter/false sources, solar glare/non-uniform background, fog/haze/rain attenuation |
+| Each: how it shows up in image | DONE | Same document, each condition's own "Physical mechanism" section |
+| Each: what it does to the estimate | DONE | Same document, each condition's own "What it does to the estimate" section — several tied to specific, real vulnerabilities already in this codebase (e.g. `find_brightest_pixel`'s clutter vulnerability, `border_median_background`'s gradient-breaking assumption), not generic statements |
+| Each: how to detect + handle | DONE | Same document, each condition's own "Detect and handle" section |
+| Scintillation specifically addressed | DONE | `sptrack/scintillation.py::generate_scintillation` — mean-reverting log-normal (AR(1)) flux-multiplier process, correlation time comparable to the frame period (not independent per-frame noise); `tests/test_scintillation.py` (6 tests: reproducibility, positivity, unbiased mean, correct log-std, autocorrelation matches AR(1) theory, shorter coherence time decorrelates faster). Impact quantified in `experiments/exp04a_scintillation.py`: overall std 1.7x worse with scintillation (227 vs 137 millipixels), std during fades 5.1x worse than during peaks (391 vs 77 mpx), 25/4096 genuine dropout frames (vs 0 with steady flux) — all bridged by §3's existing dead-reckoning mechanism rather than losing the track; `figures/exp04a_scintillation.png` with embedded explanation panel |
 
 ## 5. Go Further (optional)
 

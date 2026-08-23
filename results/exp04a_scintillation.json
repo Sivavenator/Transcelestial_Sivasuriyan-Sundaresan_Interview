@@ -1,0 +1,15 @@
+{
+  "base_snr": 5.0,
+  "sigma_ln": 0.6,
+  "tau_s_ms": 5.0,
+  "std_steady_px": 0.13696787562454252,
+  "std_scint_overall_px": 0.2268922529269261,
+  "std_scint_low_flux_px": 0.3914499854032077,
+  "std_scint_high_flux_px": 0.07646179474160963,
+  "n_low_flux_frames": 890,
+  "n_high_flux_frames": 617,
+  "n_failed_steady": 0,
+  "n_failed_scint": 25,
+  "mult_min": 0.06885126055110234,
+  "mult_max": 9.830645038057648
+}
