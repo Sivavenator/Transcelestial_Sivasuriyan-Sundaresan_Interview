@@ -534,6 +534,82 @@ nudging the estimate very slightly above the true flat pedestal.**
   checking the actual numbers rather than trusting an assumption about "far
   enough."
 
+**The Gaussian fit uses an ANALYTIC Jacobian (`psf.py::pixel_response_1d_with_derivative`),
+not finite differences.**
+- Why: the closed form isn't hard to derive (chain rule through `erf`'s own
+  derivative), costs one extra `exp` evaluation instead of a second full
+  model evaluation per parameter per iteration, and is exact rather than an
+  approximation with its own step-size tuning problem.
+- Verified against finite differences directly, not just derived on paper:
+  `test_analytic_derivative_matches_finite_differences` checks agreement to
+  `1e-6` across several centre positions; a separate sign-check test
+  confirms the direction (a pixel to the right of the spot gains brightness
+  as the centre moves right) matches the reasoning stated in the docstring.
+
+**The fit weights each pixel by the inverse of its own predicted variance
+(Poisson-weighted least squares), recomputed every iteration from the
+CURRENT model, not the noisy data.**
+- Why weighted at all: ordinary least squares treats every pixel as
+  equally noisy, which is already known to be wrong from the very first
+  noise source built in this project (photon noise variance scales with
+  signal) — weighting by predicted variance is what lets this method
+  approach the Cramér–Rao bound where the centroid cannot.
+- Why the MODEL's prediction, not the DATA, sets the variance: using the
+  observed (noisy) value to weight itself creates a feedback loop — a
+  pixel that happened to read low also gets treated as if it were expected
+  to be low, biasing the fit. The model's current prediction has no such
+  circularity.
+- Why recomputed every iteration rather than once from the initial
+  (centroid) guess: a single fixed set of weights would be a cheaper
+  one-step approximation, not the true Poisson MLE fixed point. Since the
+  model is recomputed every iteration anyway (needed for the residual),
+  recomputing the weights from it costs nothing extra.
+
+**Levenberg-Marquardt damping, not plain Gauss-Newton, and a hard
+trust-region cap of 1 px per step regardless of what the damped solve
+suggests.**
+- Why LM: Gauss-Newton can overshoot or diverge when the current guess is
+  still far from the optimum — most likely on the very first iteration,
+  before the fit has had a chance to refine anything. LM blends toward
+  (safer, slower) gradient descent exactly when a step fails to improve
+  chi², and relaxes back toward full Gauss-Newton once it's working.
+- Why an additional hard cap on top of that: the local linearisation
+  Gauss-Newton relies on is least trustworthy precisely when it wants to
+  take a large step — capping at 1 px prevents a single bad iteration from
+  ejecting the fit somewhere the model no longer resembles the data at all,
+  regardless of what the (possibly ill-conditioned, early-iteration)
+  damped solve computes.
+
+**The fit is seeded from the centroid estimator's own output (both
+position AND flux/background), not an arbitrary or user-supplied guess.**
+- Why: this is a local optimiser, not a global search — it refines a
+  starting point, it doesn't find one. The centroid is cheap, already
+  built, and normally accurate to a fraction of a pixel, which is a
+  realistic, honest starting point (what a real system would actually have
+  available), not an artificially generous one.
+
+**sigma is a fixed input to the fit, not a 5th free parameter.**
+- Why: mirrors real systems, where PSF width is typically calibrated
+  separately rather than re-estimated every single frame, and keeps this
+  estimator directly comparable to the centroid (which also assumes a
+  fixed shape/window rather than fitting one) — a fair comparison needs
+  both methods given the same information, not one given strictly more.
+  Fitting sigma too is a natural later extension once PSF-mismatch
+  robustness (§4 of the brief) is being studied deliberately.
+
+**Head-to-head precision comparison against the centroid uses the SAME
+random frames for both estimators (a paired comparison), not independently
+drawn samples for each.**
+- Why: removes sampling luck as a confound — any measured difference in
+  spread is guaranteed to come from the estimators themselves, not from one
+  method happening to see an easier or harder set of noise realisations.
+  Result at flux=6000 e-, background=30 e- (`sigma_read_e=5.0`):
+  Gaussian fit measured 22% tighter (lower std) than the centroid on 500
+  paired trials — the efficiency argument in `gaussian_fit.py`'s docstring,
+  actually measured rather than only asserted. A full bias/std-vs-SNR
+  sweep, compared against the Cramér–Rao bound, is Characterization's job
+  (§2c) — this is a first, informal look at the same question.
+
 ---
 
 *(This document will grow as each new part of the simulator — remaining

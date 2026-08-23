@@ -80,6 +80,50 @@ def pixel_response_1d(pixel_index: np.ndarray, centre: float, sigma: float) -> n
     return 0.5 * (erf(hi) - erf(lo))
 
 
+def pixel_response_1d_with_derivative(
+    pixel_index: np.ndarray, centre: float, sigma: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """``pixel_response_1d``, plus its analytic derivative w.r.t. ``centre``.
+
+    Needed by a gradient-based fitter (the 2-D Gaussian fit, next):
+    Gauss-Newton needs to know which direction moving the fitted centre
+    increases or decreases each pixel's predicted brightness, and by how
+    much. A numerical (finite-difference) derivative would work too, but
+    costs an extra function evaluation per parameter per iteration and is
+    less exact -- worth avoiding when, as here, the closed form is not hard
+    to derive.
+
+    THE DERIVATION
+    ------------------
+    Recall P(c) = 0.5 * (erf(hi) - erf(lo)), with
+    hi = (idx + 0.5 - c) / (sigma*sqrt2), lo = (idx - 0.5 - c) / (sigma*sqrt2).
+
+    The derivative of erf itself: d/dz [erf(z)] = (2/sqrt(pi)) * exp(-z^2).
+    By the chain rule, and since both hi and lo have the SAME derivative
+    w.r.t. c (dhi/dc = dlo/dc = -1/(sigma*sqrt2)):
+
+        dP/dc = 0.5 * [ d(erf(hi))/dc - d(erf(lo))/dc ]
+              = 0.5 * [ (2/sqrt(pi))*exp(-hi^2)*(-1/(sigma*sqrt2))
+                        - (2/sqrt(pi))*exp(-lo^2)*(-1/(sigma*sqrt2)) ]
+              = -(1 / (sigma*sqrt2*sqrt(pi))) * [exp(-hi^2) - exp(-lo^2)]
+              = -[exp(-hi^2) - exp(-lo^2)] / (sigma * sqrt(2*pi))
+
+    SIGN CHECK (worth doing, because a sign error here is silent and just
+    makes a fitter converge to the wrong place, or fail to converge at all):
+    moving the centre `c` to a LARGER value should mean a pixel to the
+    RIGHT of the spot receives MORE light. For a pixel to the right (large
+    idx), `hi` and `lo` are both large and positive, so `exp(-hi^2) <
+    exp(-lo^2)` (hi is further out on the Gaussian, closer to zero).  That
+    makes the bracket negative, and the leading minus sign flips it
+    positive -- so dP/dc > 0 for a pixel to the right, as it should be.
+    """
+    hi = (pixel_index + 0.5 - centre) / (sigma * _SQRT2)
+    lo = (pixel_index - 0.5 - centre) / (sigma * _SQRT2)
+    response = 0.5 * (erf(hi) - erf(lo))
+    d_response = -(np.exp(-(hi**2)) - np.exp(-(lo**2))) / (sigma * np.sqrt(2.0 * np.pi))
+    return response, d_response
+
+
 def render_spot(
     shape: tuple[int, int],
     x0: float,

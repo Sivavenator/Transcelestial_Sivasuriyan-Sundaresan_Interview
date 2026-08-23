@@ -29,8 +29,8 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Requirement | Status | Verified by |
 |---|---|---|
 | Method 1: windowed intensity-weighted centroid + background subtraction | DONE | `sptrack/estimators/centroid.py::centroid_estimate`, `sptrack/estimators/base.py`; `tests/test_centroid.py` (recovers true position on a clean image, background subtraction proven to remove a real window-centre bias not just cosmetic, clip/no-clip agree within the understood border-leakage effect, edge-clamped window handled, approximately unbiased against the full Simulator over 300 Monte Carlo trials) |
-| Method 2: 2D Gaussian fit (LSQ or MLE) | NOT STARTED | |
-| Explanation of why each behaves as it does | NOT STARTED | |
+| Method 2: 2D Gaussian fit (LSQ or MLE) | DONE | `sptrack/estimators/gaussian_fit.py::gaussian_fit_estimate`; `sptrack/psf.py::pixel_response_1d_with_derivative` (analytic Jacobian, verified against finite differences); `tests/test_gaussian_fit.py` (recovers true position/flux/bg on a clean image, approximately unbiased against 300 Monte Carlo trials, handles an edge-clamped window, fails gracefully on a degenerate all-zero image) |
+| Explanation of why each behaves as it does | DONE | `tests/test_gaussian_fit.py::test_fit_is_more_precise_than_the_centroid_at_high_snr` — head-to-head on identical noisy frames, Gaussian fit measured 22% tighter (lower std) than the centroid, matching the Poisson-weighting efficiency argument in `gaussian_fit.py`'s docstring; visualized in `docs/sanity_check_gaussian_fit.png` |
 
 ## 2c. Characterization
 
