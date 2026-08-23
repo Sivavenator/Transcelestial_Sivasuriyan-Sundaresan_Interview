@@ -360,20 +360,63 @@ with a finite number of representable levels set by the bit depth:
 
 QUANTIZATION ERROR AS UNIFORM NOISE
 ----------------------------------------
-Rounding to the nearest integer DN discards whatever fraction of a DN the
-true value had -- an error uniformly distributed on [-0.5, +0.5] DN (a
-classical result: when a continuous signal already has some other noise
-mixed in before rounding -- here, everything upstream: photon noise, read
-noise, dark current -- that noise "dithers" the value enough that the
-rounding error behaves like it's drawn from a uniform distribution, rather
-than something value-dependent and awkward to model). A uniform
-distribution on an interval of width 1 has variance 1/12 (standard result:
-Var = (b-a)^2 / 12 for Uniform(a, b), here b - a = 1):
+The ADC only ever outputs whole DN values -- it rounds. That rounding
+happens in DN SPACE, not electron space: the natural pipeline is
+electrons -> divide by gain -> DN (still a real number at this point) ->
+round to the nearest integer -> that rounded integer is the actual
+quantized output. Getting this order right matters, because it changes
+where the "1" in the variance formula's denominator lives.
 
-    Var[quantization], in DN^2  = 1/12
-    Var[quantization], in electrons^2 = gain_e_per_dn^2 / 12
+Step 1 -- where the 1/12 comes from, in DN^2.
+Rounding to the nearest integer DN produces an error
+``error = true_value - rounded_value``. If the true value's fractional part
+can land anywhere within one DN bin (say, anywhere between n-0.5 and n+0.5,
+all of which round to n), that error is uniformly distributed on
+[-0.5, +0.5] DN -- a classical result that holds when the signal already
+has some other noise mixed in before rounding (here, everything upstream:
+photon noise, read noise, dark current), which "dithers" the value enough
+that the rounding error behaves like a draw from a uniform distribution
+rather than something value-dependent and awkward to model.
 
-This adds, as one more independent term, to the running noise budget:
+The variance of a uniform distribution on [a, b] is a standard result,
+Var = (b-a)^2 / 12; here the bin width is b - a = 1 DN, so:
+
+    Var[quantization], in DN^2 = 1^2 / 12 = 1/12
+
+That 12 isn't an arbitrary constant -- it falls straight out of integrating
+x^2 over the uniform density on [-0.5, 0.5]:
+
+    integral(-0.5 to 0.5) of x^2 dx  =  [x^3 / 3] from -0.5 to 0.5
+                                      =  (1/24) - (-1/24)  =  1/12
+
+Step 2 -- why converting to electrons multiplies by gain^2, not gain.
+Since electrons = DN * gain, the rounding error itself also scales by gain:
+
+    error_in_electrons = error_in_DN * gain
+
+And variance scales as the SQUARE of a linear scale factor -- a basic
+property of variance, Var[a*X] = a^2 * Var[X] for any constant a. So:
+
+    Var[quantization], in electrons^2 = gain_e_per_dn^2 * Var[quantization in DN]
+                                       = gain_e_per_dn^2 * (1/12)
+                                       = gain_e_per_dn^2 / 12
+
+A bigger gain means each DN step represents more electrons, so rounding to
+the nearest DN throws away more electrons' worth of precision -- which is
+exactly what the gain^2 factor captures.
+
+CONCRETE NUMBERS
+--------------------
+Using a representative gain of ~9.77 e-/DN (a 40,000-electron full well
+spread over a 12-bit, 4096-level ADC -- gain = full_well / n_levels):
+
+    Var[quantization], in DN^2        = 1/12                    ~= 0.083 DN^2
+    Var[quantization], in electrons^2 = 9.77^2 / 12 ~= 95.5/12   ~= 7.96 e-^2
+
+So the STANDARD DEVIATION of quantization noise, in electrons, is
+sqrt(7.96) ~= 2.82 e- -- a real, non-negligible noise floor once compared
+against something like sigma_read = 5.0 e- from earlier, and it stacks into
+the same running noise budget (variances add for independent sources):
 
     Var[total], in electrons^2 = signal + mean_dark + sigma_read^2 + gain_e_per_dn^2 / 12
 
