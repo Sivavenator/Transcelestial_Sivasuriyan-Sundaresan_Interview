@@ -1,0 +1,10 @@
+{
+  "jitter_sigma_px": 0.15,
+  "wander_sigma_px": 0.15,
+  "tau_s_ms": 20.0,
+  "jitter_low_high_ratio": 0.036458336854335346,
+  "wander_low_high_ratio": 9.179078594066736,
+  "combined_std_px": 0.2097001952891645,
+  "expected_quadrature_std_px": 0.21213203435596426,
+  "corner_freq_hz": 7.957747154594767
+}

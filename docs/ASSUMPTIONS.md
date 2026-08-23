@@ -1293,5 +1293,58 @@ after the fact, not a mitigation purpose-built for scintillation.
 
 ---
 
+## Real-world conditions, continued: fog/rain and beam wander (§5's "robustness to §4 conditions")
+
+The brief only required scintillation to be simulated (§4); simulating
+the remaining conditions from `docs/REAL_WORLD_CONDITIONS.md` was
+user-directed, going beyond that explicit ask. Full reasoning lives in
+`experiments/exp04b_fog_attenuation.py` and `sptrack/beam_wander.py`'s
+own docstrings; summarised here.
+
+**Fog/rain: why a steady sweep, not a time-varying process.**
+Scintillation fluctuates WITHIN a single ~4s capture window because its
+coherence time (ms) is comparable to the frame period. Fog/rain changes
+over minutes to hours — essentially constant across any single capture
+window this project simulates. Modelling it as a within-sequence random
+process the way scintillation was would misrepresent its real timescale;
+the honest framing is a steady attenuation level swept ACROSS conditions
+(reusing §2c's own sweep structure), not a new random-process module.
+
+**Fog/rain: dropout rate alone understates the real failure.** At
+moderate/dense fog (SNR collapsed to ~0.02/~3e-11), only 43-44% of trials
+registered as outright failures (`ok=False`) — but the "successful"
+remainder's std explodes to ~2 px, comparable to the whole 21x21
+estimation window. These are noise-driven fits to nothing, not
+meaningfully imprecise real measurements. This is the SAME mechanism
+already noted for scintillation's demonstration parameters
+(`gaussian_fit_estimate`'s convergence criterion is step-size-based, not
+quality-based) showing up again in a different condition — worth reading
+as a general property of this project's `ok` flag, not a fog-specific
+quirk.
+
+**Beam wander: why equal-variance-but-different-shape was chosen
+deliberately.** `sigma_px=0.15` was set EQUAL to `trajectory.py`'s
+`jitter_std_px`, specifically so the demonstration couldn't be dismissed
+as "of course they look different, one is bigger" — verified directly
+that two position-noise sources with identical std can still be
+separated by spectral shape alone (low/high-band power ratio ~0.036 for
+white jitter vs. ~9.18 for beam wander, a ~250x difference,
+`experiments/exp04c_beam_wander.py`), and that when summed they combine
+independently (measured combined std 0.2097 px vs. the quadrature
+prediction sqrt(0.15^2+0.15^2)=0.2121 px — almost exact agreement).
+
+**A genuine interaction flagged, not chased down further here.** Beam
+wander's spectral shape overlaps with drift's (both low-frequency-
+concentrated) — meaning a real deployment with both present would need a
+WIDER `exclude_below_hz` in `sptrack/disturbance.py` to keep either from
+masquerading as the periodic disturbance, which increases exposure to the
+boundary-blind-spot failure mode already found in §3 part 4 if a real
+disturbance's frequency happens to sit near that widened boundary.
+Recorded as an identified risk connecting two separately-built pieces of
+this project, not re-characterized quantitatively here — a reasonable
+place to stop rather than open a third nested investigation.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*

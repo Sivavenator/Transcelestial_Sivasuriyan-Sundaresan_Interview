@@ -1,0 +1,57 @@
+{
+  "link_distance_km": 1.0,
+  "clear_snr": 50.0,
+  "n_trials": 200,
+  "conditions": {
+    "clear": {
+      "atten_db_per_km": 0.2,
+      "atten_db_total": 0.2,
+      "transmittance": 0.954992586021436,
+      "flux": 48368.60539216458,
+      "snr": 48.83408564908339,
+      "dropout_rate": 0.0,
+      "bias_px": -0.0011197491828573902,
+      "std_px": 0.008581395757045336
+    },
+    "haze": {
+      "atten_db_per_km": 4.0,
+      "atten_db_total": 4.0,
+      "transmittance": 0.3981071705534972,
+      "flux": 20163.390709151583,
+      "snr": 30.98737376459264,
+      "dropout_rate": 0.0,
+      "bias_px": 0.0003671171650519689,
+      "std_px": 0.01473233161808575
+    },
+    "light fog": {
+      "atten_db_per_km": 20.0,
+      "atten_db_total": 20.0,
+      "transmittance": 0.01,
+      "flux": 506.481475355442,
+      "snr": 2.7155303361568155,
+      "dropout_rate": 0.0,
+      "bias_px": 0.011796155374709096,
+      "std_px": 0.26404994753231453
+    },
+    "moderate fog": {
+      "atten_db_per_km": 42.0,
+      "atten_db_total": 42.0,
+      "transmittance": 6.309573444801929e-05,
+      "flux": 3.1956820671868,
+      "snr": 0.020277462224202885,
+      "dropout_rate": 0.43,
+      "bias_px": -0.4721676911968841,
+      "std_px": 2.014402380057905
+    },
+    "dense fog": {
+      "atten_db_per_km": 130.0,
+      "atten_db_total": 130.0,
+      "transmittance": 1e-13,
+      "flux": 5.064814753554421e-09,
+      "snr": 3.2178564876663885e-11,
+      "dropout_rate": 0.44,
+      "bias_px": -0.23170666944426,
+      "std_px": 2.155663599873668
+    }
+  }
+}

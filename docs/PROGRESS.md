@@ -83,7 +83,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Requirement | Status | Verified by |
 |---|---|---|
 | Auto-exposure/gain control, graceful saturation | NOT STARTED | |
-| Robustness to §4 conditions, implemented | NOT STARTED | |
+| Robustness to §4 conditions, implemented | IN PROGRESS | Beyond the brief's explicit ask (only scintillation was required to be simulated, §4) — user directed simulating the remaining conditions too. Fog/rain: `experiments/exp04b_fog_attenuation.py` — named-weather-condition attenuation (dB/km) swept through the existing SNR/flux machinery (no new sptrack module needed); found a hard operational cliff between haze and light fog, and that "dropout rate" alone understates failure at moderate/dense fog (the "successful" remainder's std explodes to ~2px — noise-driven, not real detections). Beam wander: `sptrack/beam_wander.py` — mean-reverting (OU/AR(1)) position noise, physically distinct from mechanical jitter; `tests/test_beam_wander.py` (5 tests, including a direct check that equal-variance jitter and wander are still ~250x separable by spectral shape); `experiments/exp04c_beam_wander.py` confirms this and the independent-sources quadrature-sum noise budget, and flags a genuine interaction with §3's disturbance-detector exclusion boundary. Clutter and glare mitigations still to come. |
 | Calibration (bias/flat-field/lens-distortion) + measured effect | NOT STARTED | |
 | Motion blur robustness | NOT STARTED | |
 | Very low photon count robustness | NOT STARTED | |
