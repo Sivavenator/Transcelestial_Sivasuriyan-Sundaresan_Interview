@@ -434,6 +434,55 @@ statistics of a full frame with everything enabled.**
   Gaussian, and uniform sources, and deriving an exact standard error for
   that mixture's sample variance is not worth the complexity here.
 
+**The worked numbers behind that test, spelled out step by step (why these
+specific values, not just what they are).**
+- `background_e=1000`, `dark_rate_e_per_s=5000`, `exposure_s=0.01` (giving
+  `mean_dark = 50`) are clean, round numbers chosen purely to make every
+  downstream number easy to check by hand — not claimed as realistic
+  operating conditions (unlike the `Simulator` class defaults, which *are*
+  chosen for realism; this test is about verifying arithmetic, not
+  simulating a plausible deployment).
+- `prnu_sigma=0` was checked to behave sensibly before relying on it: it
+  returns an array of exactly `1.0` everywhere, no edge-case randomness or
+  degenerate behaviour from a zero-width Normal draw.
+- No clipping risk, checked rather than assumed: with `sigma_read_e=5.0`,
+  `gain_e_per_dn=10.0`, `bit_depth=16`, the baseline sits around 105 DN with
+  negligible noise relative to that baseline — nowhere near either the
+  bottom (0) or top (65535) of the ADC's range, so saturation and the
+  black-level clipping bias (sensor.py's quantization section) are both
+  structurally impossible here, not just unlikely.
+- Expected mean, in electrons: `background_e + mean_dark = 1000 + 50 = 1050`.
+- Expected variance, in electrons², built up term by term: because
+  background shot noise and dark-current shot noise are drawn as two
+  *separate* independent Poisson processes in the pipeline (see the Poisson
+  additivity reasoning in `sensor.py`'s dark-current section), their
+  variances add directly rather than needing to be combined first:
+  `1000` (background shot noise) `+ 50` (dark shot noise) `+ 25`
+  (`sigma_read_e² = 5.0²`) `+ 8.33` (`gain²/12 = 100/12`, the quantization
+  term derived in `sensor.py`) `≈ 1083.33`, giving an expected standard
+  deviation of `sqrt(1083.33) ≈ 32.9` electrons.
+- In DN terms: at 10 electrons/DN, that's `32.9 / 10 ≈ 3.3` DN of noise —
+  fine enough resolution relative to the 105 DN baseline for a clean
+  statistical comparison, not so coarse that quantization itself would
+  smear out the signal being measured.
+- Working out `n_trials` from a target precision, the same method used
+  throughout this project (e.g. the photon-noise test's `lambda=500,
+  n_trials=5000` derivation): pooling over a 100-pixel window, standard
+  error scales as `std / sqrt(n_trials * n_pixels)`. Targeting a tight
+  `SE(mean) ≈ 0.5` electrons: `n_total ≈ (32.9 / 0.5)² ≈ 4329`, so
+  `n_trials ≈ 44` with 100 pixels. `n_trials = 200` was used instead for a
+  comfortable safety margin, giving `SE(mean) ≈ 32.9 / sqrt(20000) ≈ 0.23`
+  electrons — tighter than strictly required, at negligible extra runtime
+  cost.
+- The variance check does not get an equivalently derived standard error,
+  and that gap is deliberate, not an oversight: this noise is a *mixture*
+  of Poisson (background, dark), Gaussian (read), and uniform
+  (quantization) terms, not one clean distribution with a textbook
+  variance-of-variance formula. Rather than force a derivation that
+  wouldn't really be trustworthy, a generous 5% relative tolerance is used
+  instead, with that approximation stated explicitly in the test's own
+  comment.
+
 ---
 
 ## Estimators (`sptrack/estimators/`)
