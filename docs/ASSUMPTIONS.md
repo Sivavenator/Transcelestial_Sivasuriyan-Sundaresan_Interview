@@ -1225,6 +1225,51 @@ end rather than the middle) specifically because a genuine loss-of-lock
 demonstration needed a genuine loss of lock to show, found by direct
 experimentation rather than assumed to exist at the moderate setting.
 
+**The actual search that led there, recorded rather than presented as if
+the final numbers were obvious from the start.** The first prototype used
+the module's own moderate default (sigma_ln=0.4) at a comfortable
+base_snr=20, purely to see the real behaviour empirically before writing
+anything into the codebase. That run showed the expected precision
+degradation during fades (std roughly 2.8x worse in low-flux than
+high-flux periods) but zero dropouts — a real result, not a failed
+attempt, but not yet the "genuine loss of lock" the real-world-conditions
+analysis wanted to demonstrate.
+
+Chasing an actual dropout surfaced a separate, more general fact about
+this project's own fit worth recording on its own: `gaussian_fit_estimate`'s
+convergence criterion (`gaussian_fit.py`) is based on STEP SIZE, not fit
+QUALITY — it declares `ok=True` once successive position updates shrink
+below `tol_px`, regardless of how noisy the resulting estimate actually
+is. That is why `ok=False` turned out to be rare and specifically tied to
+truly degenerate inputs (the centroid seed failing from a non-positive
+background-subtracted flux sum, or a linear-algebra failure in the
+Gauss-Newton solve) rather than to "low SNR" in general — consistent with
+what the §3 hard-scenario sweep had already shown (0 failed fits even at
+SNR=5 with no scintillation at all). This matters beyond scintillation:
+anywhere this project reports an `ok`/failure rate, it should be read as
+"the fit degenerated outright," not "the fit was imprecise" — those are
+different things, and conflating them would overstate how often this
+estimator visibly signals trouble.
+
+Given that, producing real dropouts meant pushing past "low SNR" alone
+into "low SNR combined with a severe enough fade to make the centroid
+seed itself fail." A short parameter sweep (base_snr x sigma_ln) found:
+
+| base_snr | sigma_ln | dropouts / 4096 |
+|---|---|---|
+| 5.0 | 0.4 | 1 |
+| 5.0 | 0.6 | 25 |
+| 4.0 | 0.6 | 71 |
+| 3.0 | 0.6 | 163 |
+
+base_snr=5.0/sigma_ln=0.6 (25 dropouts, ~0.6%) was chosen over the more
+dramatic 4.0/0.6 (71, ~1.7%) or 3.0/0.6 (163, ~4.0%) options deliberately:
+it is a realistic, visible-but-not-overwhelming dropout rate, and it keeps
+base_snr=5.0 consistent with the SAME "low SNR" reference point already
+established and justified in §3's own hard scenario — reusing an
+already-defended number rather than escalating severity further purely to
+make the demonstration more dramatic.
+
 **Result.** With base_snr=5.0 (matching §3's own hard-scenario choice)
 and sigma_ln=0.6: overall position-error std is 1.7x worse with
 scintillation than steady flux (227 vs 137 millipixels); std during deep
