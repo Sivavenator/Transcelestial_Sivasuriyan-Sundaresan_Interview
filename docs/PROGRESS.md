@@ -22,7 +22,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Pixel-gain non-uniformity (PRNU) | DONE | `sptrack/sensor.py::generate_prnu_map`, `apply_prnu`; `tests/test_sensor.py` (map statistics correct, map fixed with seed, multiplication correct, uniform gain leaves centroid exactly unchanged, non-uniform gain proven to bias differently at different sub-pixel offsets) |
 | Bit-depth quantization | DONE | `sptrack/sensor.py::quantize_to_dn`; `tests/test_sensor.py` (basic rounding verified numerically, integer-valued output, saturation clips at top, negative electrons clip at 0 without a pedestal, quantization-error variance matches gain²/12 exactly, pedestal removes the clipping bias — matching the theoretical sigma/sqrt(2*pi) prediction) |
 | SNR control (sweepable) | DONE | `sptrack/snr.py::snr_to_flux`, `flux_to_snr`, `peak_pixel_fraction`; `tests/test_snr.py` (peak fraction shrinks with wider spot, reduces to sqrt(peak) in the photon-noise-dominated limit, round-trips exactly across a range of SNR/noise combinations, flux correctly increases with a noisier background) |
-| ~7 px diameter spot (1/e²), variable | NOT STARTED | |
+| ~7 px diameter spot (1/e²), variable | DONE | `sptrack/psf.py::diameter_1e2_to_sigma`, `sample_true_sigma`; `tests/test_psf_sigma.py` (7px diameter matches the established sigma=1.75 constant, conversion verified against its own physical definition across multiple diameters, per-unit sigma statistics match the requested tolerance, floor prevents non-physical values and is confirmed to actually engage) |
 
 ## 2b. Estimators
 

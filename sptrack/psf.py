@@ -104,3 +104,73 @@ def render_spot(
     px = pixel_response_1d(xs, x0, sigma)
     py = pixel_response_1d(ys, y0, sigma)
     return flux * np.outer(py, px)
+
+
+def diameter_1e2_to_sigma(diameter_1e2_px: float) -> float:
+    """Convert a laser's "diameter at 1/e^2" spec to a Gaussian sigma.
+
+    THE DERIVATION
+    ------------------
+    Laser beam profiles are conventionally specified using irradiance
+    I(r) = I0 * exp(-2 r^2 / w^2), where w is the "beam radius": by
+    construction, at r = w the exponent is -2*w^2/w^2 = -2, so
+    I(w) = I0 * exp(-2) = I0 / e^2 -- this is exactly what "1/e^2" means.
+
+    Compare that to the standard statistical Gaussian intensity profile in
+    terms of sigma: I(r) = I0 * exp(-r^2 / (2 sigma^2)). Setting the two
+    exponents equal (since they describe the same physical spot, just in two
+    different conventions):
+
+        2 r^2 / w^2  =  r^2 / (2 sigma^2)
+        2 / w^2      =  1 / (2 sigma^2)
+        w^2          =  4 sigma^2
+        w            =  2 sigma
+        sigma        =  w / 2
+
+    Since w is the RADIUS at 1/e^2, and the brief specifies a DIAMETER:
+
+        w = diameter_1e2 / 2
+        sigma = w / 2 = diameter_1e2 / 4
+
+    With the brief's ~7 px diameter: sigma = 7 / 4 = 1.75 px -- exactly the
+    value used as the default sigma throughout this project's tests.
+    """
+    radius_1e2 = diameter_1e2_px / 2.0
+    return radius_1e2 / 2.0
+
+
+def sample_true_sigma(
+    nominal_sigma: float, tolerance_frac: float, rng: np.random.Generator
+) -> float:
+    """Draw one PSF width representing a specific optical unit's true sigma.
+
+    THE BRIEF: "spot size is ~7 px diameter (1/e^2) but can slightly vary
+    depending on optics quality"
+    --------------------------------------------------------------------------
+    Real optics have manufacturing and assembly tolerances -- lens
+    curvature, alignment, focus -- so no two physical units, even of the
+    same design, produce EXACTLY the nominal spot size. This is modelled as
+    a FIXED property of one simulated optical unit: call this once per
+    simulated system (the same way generate_hot_pixel_mask and
+    generate_prnu_map are called once per simulated sensor, not per frame),
+    not once per frame -- a given unit's optics don't refocus themselves
+    between frames.
+
+    ``tolerance_frac`` is the manufacturing tolerance as a fraction of the
+    nominal sigma (e.g. 0.1 for +-10%-ish spread). Clipped to a small
+    positive floor rather than allowed to go non-positive or unrealistically
+    close to zero, since sigma <= 0 has no physical meaning.
+
+    WHY THIS MATTERS BEYOND "MORE REALISM"
+    -------------------------------------------
+    An estimator that ASSUMES a fixed template sigma (most of the ones in
+    this project) is implicitly assuming the design value is the true
+    value. If the real optics' true sigma differs even slightly, that
+    estimator is fitting the wrong model -- a form of PSF model mismatch.
+    This function exists specifically to let later experiments inject that
+    mismatch deliberately and measure what it costs, rather than only ever
+    testing estimators against PSFs they were built to expect.
+    """
+    sigma = rng.normal(nominal_sigma, nominal_sigma * tolerance_frac)
+    floor = 0.1 * nominal_sigma
+    return max(sigma, floor)

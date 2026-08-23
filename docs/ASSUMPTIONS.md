@@ -60,6 +60,38 @@ leftmost/topmost pixel).
   encloses >99.9% of the flux), but worth remembering once window size
   becomes a tunable parameter.
 
+**The laser-industry "1/e² diameter" spec is converted to a Gaussian sigma
+via `sigma = diameter_1e2 / 4`, derived from matching the laser-optics
+irradiance convention to the statistical-Gaussian convention.**
+- Why not just accept "sigma=1.75" as a given constant: the brief states the
+  spot size as ~7 px diameter *at 1/e²* — a specific laser-optics
+  convention, `I(r) = I0*exp(-2r²/w²)`, not the statistical Gaussian
+  convention this project's code otherwise uses, `I(r) = I0*exp(-r²/2σ²)`.
+  Matching the two exponents gives `σ = w/2`, and since `w` (the laser
+  convention's "radius") is half the *diameter*, `σ = diameter/4`. With the
+  brief's 7 px: `σ = 1.75` — confirming, rather than assuming, the constant
+  used throughout every earlier test in this project.
+- Verified against its own physical definition, not just algebra: for every
+  diameter tested (not only 7 px), the continuous Gaussian intensity at
+  `r = diameter/2` sits exactly on `1/e²`
+  (`test_diameter_1e2_to_sigma_satisfies_its_own_definition`).
+
+**Spot-size variation (`sample_true_sigma`) is a FIXED per-optical-unit
+property, drawn once, not fresh per-frame noise.**
+- Why: real manufacturing/assembly tolerance is a property of one physical
+  lens/optics assembly — it doesn't refocus itself between frames. Same
+  fixed-once pattern as `generate_hot_pixel_mask` and `generate_prnu_map`.
+- Why this matters beyond realism: an estimator that assumes a fixed
+  template sigma is implicitly assuming the design value is the true value.
+  This function exists specifically so a later experiment can inject PSF
+  model mismatch deliberately (a real-world condition from §4 of the brief)
+  and measure its cost, rather than only ever testing estimators against
+  PSFs they were built to expect.
+- The floor (`0.1 * nominal_sigma`) is a physical guard against non-positive
+  sigma from an extreme tolerance draw — and the test confirms the floor
+  actually engages under an extreme `tolerance_frac=5.0`, not merely that
+  the clipping code exists (`test_sample_true_sigma_never_returns_non_positive_even_at_extreme_tolerance`).
+
 ---
 
 ## Noise chain (`sptrack/sensor.py`)
