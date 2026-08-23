@@ -49,6 +49,98 @@ generated ONCE, not redrawn every frame: the hot-pixel defect map, the PRNU
 gain map, and (if enabled) the true optical sigma. This class generates
 them in ``__init__`` and reuses them across every call to ``render``,
 exactly the pattern established when each was built individually.
+
+DEFAULT VALUES, AND WHY EACH ONE WAS CHOSEN
+--------------------------------------------------
+Every default below is a deliberate choice, not a placeholder. Most reuse a
+value already derived and justified earlier in this project, rather than
+introducing a fresh unjustified number:
+
+  nominal_diameter_1e2_px = 7.0
+      Directly the brief's own spec: "~7 pixels in diameter (1/e^2)".
+
+  sigma_tolerance_frac = 0.0
+      Off by default (exact nominal sigma), so a bare Simulator gives a
+      deterministic, repeatable PSF unless unit-to-unit variation is
+      explicitly requested -- this one parameter has no "typical nonzero"
+      value the way a noise level does, so off is the honest default, not
+      an arbitrary nonzero guess.
+
+  background_e = 30.0
+      Deliberately close to (slightly above) the read-noise/shot-noise
+      crossover derived in sensor.py's read-noise section --
+      sigma_read^2 = 25 at sigma_read=5.0 -- so the default sits in the
+      regime where BOTH read noise and background shot noise matter,
+      rather than an extreme where one trivially dominates. Also the same
+      value already used consistently across this project's own
+      sanity-check visualisations.
+
+  gradient_frac = 0.0, gradient_angle_rad = 0.0
+      Flat background by default. NOTE, stated honestly: this is an
+      exception to "nothing defaults to off" above -- but a deliberate one,
+      not an oversight. Unlike a noise level (which has a physically
+      typical nonzero magnitude to default to), a gradient's strength AND
+      direction are scene-specific with no single representative value;
+      picking any nonzero default would be an arbitrary, unjustified claim
+      about a specific deployment scenario. Flat is the only choice that
+      isn't secretly asserting something about the world.
+
+  dark_rate_e_per_s = 50.0
+      A modest, realistic room-temperature rate for a decent sensor,
+      chosen so that at the default exposure_s=1e-3 it gives mean_dark =
+      0.05 e- -- genuinely negligible, exactly matching the claim already
+      made in sensor.py's docstring ("dark current is often negligible at
+      these exposure times... and room temperature"). Non-zero by default
+      so it's still exercised (and becomes non-negligible) once exposure
+      or temperature scale up in a later experiment.
+
+  exposure_s = 1e-3
+      1 ms, directly the brief's ~1 kHz frame rate (1 / 1000 Hz).
+
+  hot_fraction = 1e-4
+      Sits in the realistic real-sensor defect-rate range already
+      established (1e-5 to 1e-3, ASSUMPTIONS.md) -- unlike the inflated
+      0.05 used only in sensor.py's own unit test specifically to get
+      enough hot pixels on a small test grid to check statistics against.
+      This default is for actual experiments, where realism is the
+      priority, not a statistical test needing a large sample.
+
+  hot_rate_e_per_s = 5e4
+      Exactly 1000x the default dark_rate_e_per_s (50) -- a clean,
+      deliberate multiplier matching sensor.py's own qualitative
+      description of a hot pixel: a dark-current rate "orders of
+      magnitude above the rest of the sensor."
+
+  sigma_read_e = 5.0
+      The same value already derived and placed on the realistic-sensor
+      table in sensor.py's read-noise section: solid consumer-CMOS
+      mid-range (cheap phone 10-20 e-, consumer CMOS 3-8 e-, scientific
+      sCMOS 1-2 e-, EMCCD <1 e-).
+
+  prnu_sigma = 0.02
+      2%, the same "realistic for a consumer sensor" value already used in
+      sensor.py's own PRNU statistics test -- as opposed to the inflated
+      5% used only in that module's position-dependent-bias DEMONSTRATION,
+      which needed the effect to be clearly visible on a small test window,
+      not to be realistic.
+
+  gain_e_per_dn = 10.0, bit_depth = 12
+      Chosen together, consistently with the worked example already used
+      in sensor.py's quantization derivation (gain ~= 9.77 e-/DN from a
+      40,000 e- full well over a 12-bit/4096-level ADC). 10.0 x 4096 =
+      40,960 e- implied full well -- matching that same worked example,
+      not a fresh, disconnected number.
+
+  black_level_dn = 100.0
+      In DN, sigma_read_e/gain_e_per_dn = 5.0/10.0 = 0.5 DN -- so a 100 DN
+      pedestal is a 200-sigma safety margin against the clipping bias
+      demonstrated in sensor.py's quantization section, far more than the
+      read-noise excursions alone would need. The extra margin matters
+      because dark current and background shot noise ALSO contribute to
+      the total noise budget the pedestal has to clear, not read noise
+      alone. In absolute terms, 100 / 4095 =~ 2.4% of the full 12-bit
+      range -- a modest, realistic fraction to spend on headroom rather
+      than dynamic range, consistent with common real sensor practice.
 """
 
 from __future__ import annotations
@@ -75,11 +167,16 @@ from .sensor import (
 class Simulator:
     """A simulated camera: fixed unit properties + a per-frame renderer.
 
-    All noise parameters default to physically modest, non-zero values
-    (nothing defaults to "off") so a bare ``Simulator(shape=(25, 25))``
-    still produces a realistic frame -- silently defaulting noise sources to
-    zero would make it easy to accidentally characterise estimators against
-    an unrealistically clean simulator.
+    Every noise LEVEL defaults to a physically modest, non-zero value, so a
+    bare ``Simulator(shape=(25, 25))`` still produces a realistic frame --
+    silently defaulting noise sources to zero would make it easy to
+    accidentally characterise estimators against an unrealistically clean
+    simulator. The one deliberate exception is the background gradient
+    (``gradient_frac=0.0``): a gradient's strength and direction are
+    scene-specific with no single representative default, so flat is the
+    only choice that doesn't quietly assert something about a particular
+    deployment. See the module docstring's "DEFAULT VALUES, AND WHY" for
+    the reasoning behind every other value.
     """
 
     shape: tuple[int, int]
