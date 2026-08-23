@@ -143,6 +143,25 @@ into the mean image before one combined draw.**
   sub-millisecond exposures at room temperature make dark current far
   smaller than this in practice (see the sensor.py docstring).
 
+**Hot pixel defect map is generated once and reused, never redrawn per
+frame — unlike every other noise source.**
+- Why: this is the one place the simulator models a fixed spatial property
+  of a physical sensor (a manufacturing defect) rather than fresh per-frame
+  randomness. Redrawing it every frame would be physically wrong — a
+  defective pixel doesn't move.
+- Consequence for the API: `generate_hot_pixel_mask` and `add_hot_pixels`
+  are deliberately two separate functions (map generation vs. per-frame
+  application) rather than one combined call, so the caller is forced to
+  generate the mask once, outside the per-frame loop, instead of it being
+  easy to accidentally call both together every frame.
+
+**Hot pixel test fraction (`0.05`, i.e. 5%) is far higher than a real
+sensor's defect rate (more like 1e-5 to 1e-3).**
+- Why: chosen purely so the statistical test (checking the empirical
+  fraction against the requested one) has enough hot pixels on a modest
+  50x50 test grid to be meaningful, without needing an unrealistically large
+  grid. Not meant to represent a realistic sensor.
+
 ---
 
 *(This document will grow as each new part of the simulator — remaining

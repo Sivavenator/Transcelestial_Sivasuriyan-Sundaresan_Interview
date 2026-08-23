@@ -17,7 +17,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Photon (Poisson) noise | DONE | `sptrack/sensor.py::add_photon_noise`; `tests/test_sensor.py` (pooled mean/variance match Poisson statistics, reproducible with seed, non-negative integer counts) |
 | Gaussian read noise | DONE | `sptrack/sensor.py::add_read_noise`; `tests/test_sensor.py` (pooled mean/variance match Gaussian statistics, noise magnitude independent of signal brightness, reproducible with seed) |
 | Dark current | DONE | `sptrack/sensor.py::add_dark_current`; `tests/test_sensor.py` (pooled Poisson statistics, scales linearly with exposure time, additivity with photon noise verified directly, reproducible) |
-| Hot pixels | NOT STARTED | |
+| Hot pixels | DONE | `sptrack/sensor.py::generate_hot_pixel_mask`, `add_hot_pixels`; `tests/test_sensor.py` (mask fraction correct, mask is fixed not per-frame, unmasked pixels exactly untouched, elevated-rate Poisson statistics) |
 | Non-uniform background gradient | NOT STARTED | |
 | Pixel-gain non-uniformity (PRNU) | NOT STARTED | |
 | Bit-depth quantization | NOT STARTED | |

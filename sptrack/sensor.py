@@ -129,6 +129,33 @@ Dark current is often negligible at these exposure times (sub-millisecond,
 to hit 1 kHz) and room temperature, but grows fast with either a longer
 exposure or a hotter sensor -- which is exactly why it needs to be
 simulated rather than assumed away.
+
+HOT PIXELS
+-------------
+A manufacturing defect can leave a handful of pixels with a dark-current
+rate orders of magnitude above the rest of the sensor. This is a genuinely
+different kind of noise source from everything above, in one crucial way:
+
+    Every noise source so far is a FRESH random draw every frame.
+    A hot pixel is a FIXED spatial defect -- the SAME pixel, every frame.
+
+So modelling it needs two pieces, not one: a defect MAP (which pixels are
+hot -- generated once, like a manufacturing property of this particular
+sensor, and reused across every frame) and the elevated dark-current draw
+itself (still random frame to frame, just at a much higher rate, at exactly
+those fixed locations).
+
+WHY THIS MATTERS FOR A CENTROID
+-----------------------------------
+A plain intensity-weighted centroid has no concept of "this pixel doesn't
+belong." A single hot pixel, sitting anywhere in the fitting window, acts as
+a large, FIXED lever arm: unlike random noise (which averages toward zero
+bias over many frames), a hot pixel pulls the estimate toward its own fixed
+location on every single frame, the same direction every time. That is a
+systematic bias, not scatter -- and it does not average away no matter how
+many frames you collect. This is exactly why real systems need
+background/outlier handling (a hot-pixel map from calibration, or a
+robust-statistics fit) rather than trusting a naive centroid on raw data.
 """
 
 from __future__ import annotations
@@ -179,3 +206,35 @@ def add_dark_current(
     mean_dark = dark_rate_e_per_s * exposure_s
     dark_electrons = rng.poisson(mean_dark, size=image.shape).astype(np.float64)
     return image + dark_electrons
+
+
+def generate_hot_pixel_mask(
+    shape: tuple[int, int], fraction: float, rng: np.random.Generator
+) -> np.ndarray:
+    """Generate a FIXED boolean map of which pixels are hot defects.
+
+    This represents a manufacturing property of one particular sensor: call
+    it once per simulated sensor and reuse the same mask on every frame --
+    do not call it fresh per frame, or the defect would (wrongly) move
+    around instead of staying put.
+    """
+    return rng.random(shape) < fraction
+
+
+def add_hot_pixels(
+    image: np.ndarray,
+    hot_mask: np.ndarray,
+    hot_rate_e_per_s: float,
+    exposure_s: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Add elevated dark current at the fixed locations marked in ``hot_mask``.
+
+    ``hot_rate_e_per_s`` is typically orders of magnitude above a normal
+    pixel's dark rate. Still drawn fresh (Poisson) every frame, like ordinary
+    dark current -- only the *location* of the defect is fixed, not its
+    exact per-frame reading.
+    """
+    mean_hot = hot_rate_e_per_s * exposure_s
+    hot_electrons = rng.poisson(mean_hot, size=image.shape).astype(np.float64)
+    return image + np.where(hot_mask, hot_electrons, 0.0)

@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
-from sptrack.sensor import add_dark_current, add_photon_noise, add_read_noise
+from sptrack.sensor import (
+    add_dark_current,
+    add_hot_pixels,
+    add_photon_noise,
+    add_read_noise,
+    generate_hot_pixel_mask,
+)
 
 
 def test_photon_noise_mean_and_variance_match_poisson_statistics():
@@ -210,3 +216,73 @@ def test_dark_current_is_reproducible_with_same_seed():
     a = add_dark_current(image, 500.0, 1.0, np.random.default_rng(13))
     b = add_dark_current(image, 500.0, 1.0, np.random.default_rng(13))
     assert np.array_equal(a, b)
+
+
+def test_hot_pixel_mask_fraction_matches_the_requested_rate():
+    rng = np.random.default_rng(21)
+
+    # fraction=0.05 on a 50x50=2500-pixel grid: this is a WAY higher rate
+    # than a real sensor's hot-pixel fraction (real defect rates are more
+    # like 1e-5 to 1e-3), chosen purely so the test has enough hot pixels to
+    # check statistically without needing an enormous grid. The SE on a
+    # binomial proportion is sqrt(p(1-p)/n) = sqrt(0.05*0.95/2500) ~= 0.0044;
+    # a tolerance of 0.03 is a ~7x margin.
+    fraction = 0.05
+    mask = generate_hot_pixel_mask((50, 50), fraction, rng)
+
+    empirical_fraction = mask.mean()
+    assert empirical_fraction == pytest.approx(fraction, abs=0.03)
+    assert mask.dtype == np.bool_
+
+
+def test_hot_pixel_mask_is_fixed_not_redrawn_per_frame():
+    # The defining property that distinguishes hot pixels from every other
+    # noise source: the SAME mask, generated once, must be reusable across
+    # frames unchanged. Two independent calls with the same seed must
+    # produce the identical mask (this is really a reproducibility check,
+    # but stated in terms of the physical property it stands in for: this
+    # is a fixed sensor defect, not fresh randomness).
+    a = generate_hot_pixel_mask((10, 10), 0.1, np.random.default_rng(4))
+    b = generate_hot_pixel_mask((10, 10), 0.1, np.random.default_rng(4))
+    assert np.array_equal(a, b)
+
+
+def test_add_hot_pixels_only_changes_masked_pixels():
+    # Pixels outside the mask should be EXACTLY unchanged (not "close to"),
+    # since add_hot_pixels adds exactly 0.0 there by construction.
+    rng = np.random.default_rng(22)
+    image = np.full((10, 10), 50.0)
+    mask = np.zeros((10, 10), dtype=bool)
+    mask[3, 7] = True  # exactly one hot pixel, at a known location
+
+    result = add_hot_pixels(image, mask, hot_rate_e_per_s=1e6, exposure_s=1.0, rng=rng)
+
+    unmasked = ~mask
+    assert np.array_equal(result[unmasked], image[unmasked])
+    assert result[3, 7] > image[3, 7]  # the hot pixel itself should have jumped
+
+
+def test_add_hot_pixels_matches_poisson_statistics_at_the_elevated_rate():
+    # Using an all-True mask isolates the elevated-rate Poisson draw from the
+    # mask-generation logic (tested separately above), and lets this reuse
+    # the exact same lambda=500, n_trials=5000 derivation as the dark-current
+    # test -- it's the identical Poisson mechanism, just at a location that's
+    # fixed rather than freshly random.
+    rng = np.random.default_rng(23)
+    hot_rate_e_per_s = 500.0
+    exposure_s = 1.0
+    mean_hot = hot_rate_e_per_s * exposure_s
+    image = np.zeros((10, 10))
+    all_hot_mask = np.ones((10, 10), dtype=bool)
+
+    n_trials = 5000
+    samples = np.stack(
+        [
+            add_hot_pixels(image, all_hot_mask, hot_rate_e_per_s, exposure_s, rng)
+            for _ in range(n_trials)
+        ]
+    )
+    pooled = samples.ravel()
+
+    assert pooled.mean() == pytest.approx(mean_hot, abs=1.0)
+    assert pooled.var() == pytest.approx(mean_hot, abs=10.0)
