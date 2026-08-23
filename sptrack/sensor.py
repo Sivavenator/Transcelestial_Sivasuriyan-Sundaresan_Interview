@@ -179,6 +179,33 @@ to hit 1 kHz) and room temperature, but grows fast with either a longer
 exposure or a hotter sensor -- which is exactly why it needs to be
 simulated rather than assumed away.
 
+KEY FACTS, SUMMARISED
+-------------------------
+  * thermal origin -- silicon lattice vibrations spontaneously free
+    electrons, indistinguishable from a true photon hit
+  * exponential temperature dependence -- the rate roughly doubles every
+    5-8 degC (commonly cited as 6-8 degC), so it escalates fast in a warm
+    environment or over a long exposure
+  * impact -- reduces usable dynamic range, adds background noise across
+    the whole frame, and is the source of the bright "hot spots" in dark
+    image regions that hot pixels (below) are the extreme case of
+
+MITIGATION, FOR LATER (NOT YET IMPLEMENTED HERE)
+-----------------------------------------------------
+Not built into the simulator yet -- these are the real-world techniques a
+deployed system would use, worth stating now because they motivate the
+calibration work the brief's "go further" section asks about:
+  * sensor cooling -- dark current roughly halves for every 6-7 degC
+    removed, which is why scientific and astrophotography cameras are
+    actively cooled
+  * dark-frame subtraction -- capture a reference frame with the same
+    exposure time and temperature but no light, then subtract it from every
+    science frame, removing the mean dark contribution (not its shot noise,
+    which is still random)
+  * pixel mapping -- identify permanently misbehaving hot pixels once
+    (calibration) and mask/interpolate over them in every subsequent frame,
+    rather than trusting the raw reading
+
 HOT PIXELS
 -------------
 A manufacturing defect can leave a handful of pixels with a dark-current
@@ -205,6 +232,14 @@ systematic bias, not scatter -- and it does not average away no matter how
 many frames you collect. This is exactly why real systems need
 background/outlier handling (a hot-pixel map from calibration, or a
 robust-statistics fit) rather than trusting a naive centroid on raw data.
+
+In practice this is solved by pixel mapping: identify the defective pixels
+once, during calibration (they are fixed, so this only has to be done
+occasionally), and mask or interpolate over them in every subsequent frame
+rather than trusting their raw reading. `generate_hot_pixel_mask` above
+produces exactly the kind of map a real calibration step would also
+produce -- here it's ground truth (we generated the defect), there it would
+be measured.
 """
 
 from __future__ import annotations
