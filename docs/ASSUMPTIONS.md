@@ -940,5 +940,51 @@ more than the typical-case number.
 
 ---
 
+## Dynamic tracking: ground-truth trajectory (§3, part 1)
+
+Full reasoning lives in `sptrack/trajectory.py`'s module docstring (each
+of the three components tied to a specific physical mechanism, with every
+default parameter's value justified); this section is a short summary.
+
+**Why three components with deliberately different spectral shapes.** The
+brief asks for "slow drift + random jitter + one periodic disturbance."
+These map onto three real, distinct physical processes — thermal
+creep/mechanical settling (drift), platform shake from many independent
+micro-sources (jitter), and a dominant rotating-machinery tone like a fan
+or motor (the disturbance) — and, critically, each has a genuinely
+different frequency signature: drift is a random walk (power concentrated
+at the lowest frequencies, 1/f^2), jitter is modelled as white noise (flat
+spectrum, justified the same way read noise's Gaussianity was — many
+independent short-correlation-time sources summing via the CLT), and the
+disturbance is a single sinusoid (one spectral spike). That separability
+is not decorative — it is the entire mechanism that will let a later
+disturbance-detection step distinguish "the injected tone" from "the rest
+of the motion" at all, and it is verified numerically
+(`tests/test_trajectory.py`), not just asserted.
+
+**Why a random walk for drift, not a low-pass filter.** A low-pass filter
+would be an engineering choice about smoothing, not a model of the
+physical process. Thermal creep and slow mechanical settling genuinely
+ARE accumulations of many small physical increments over time — a random
+walk (cumulative sum of iid steps) is the direct statistical model of an
+accumulation, not a filter imposed on top of one. Its known downside
+(unbounded growth) is handled by keeping the per-step size small enough
+that, over the durations actually simulated here, the accumulated
+excursion stays modest — checked numerically
+(`test_total_excursion_stays_modest_over_the_default_capture_window`),
+not assumed.
+
+**Why the default disturbance (20 Hz, 0.3 px amplitude) is the EASY case,
+not the hard one.** The brief separately requires the scenario be made
+deliberately hard (disturbance amplitude near the jitter floor, frequency
+near the resolution floor) — see the failure-mode analysis planned later
+in this section. Baking "hard" into the default parameters from the start
+would make it impossible to first verify the recovery and detection
+pipeline works correctly on an easy, unambiguous case before stress-
+testing it. The easy case is proven first; the hard variant is built as a
+deliberate second configuration once that baseline is established.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
