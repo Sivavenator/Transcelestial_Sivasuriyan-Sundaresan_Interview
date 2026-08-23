@@ -1400,5 +1400,67 @@ was the more complete answer than stopping at "here is the problem."
 
 ---
 
+## Go Further: auto-exposure/gain control (§5)
+
+Full reasoning lives in `sptrack/agc.py`'s module docstring; this section
+records the actual build process, including a real bug caught along the
+way.
+
+**Why the case for AGC here is efficiency, not failure-prevention.**
+Checked directly before assuming anything: this project's Poisson-
+weighted Gaussian fit is already fairly robust to modest saturation on
+its own (clipping a handful of the brightest pixels barely moves the
+fit — those pixels are naturally down-weighted by their own large
+predicted variance). So the honest motivation for AGC is not "the system
+falls apart without it" — within the ranges first tested, it didn't. The
+real case is that a FIXED exposure/gain setting is only well-tuned for a
+narrow brightness band; AGC keeps the operating point well-exposed across
+a much wider range, which matters given the several-order-of-magnitude
+brightness swings already measured in §4 (scintillation, fog).
+
+**Why the controller adjusts an "effective gain" applied BEFORE photon
+noise, and why that specifically models exposure time / optical
+throughput, not post-hoc analog gain.** This distinction matters
+physically: multiplying flux before the Poisson draw genuinely changes
+how many real photons are simulated as arriving (correct for exposure
+time, aperture, or attenuation changes) and genuinely improves SNR.
+Multiplying an ALREADY-REALIZED noisy signal after the fact (pure
+post-hoc analog/digital gain) would not improve SNR at all — it would
+rescale signal and its own noise together, for zero net benefit. The
+docstring is deliberately precise about which mechanisms this proxies
+for, to avoid implying a physically unsound "gain fixes shot noise"
+claim.
+
+**A real, unexpected finding, found by testing the settling assumption
+rather than trusting it: convergence is asymmetric.** The first version
+of the sweep experiment used a fixed 8-frame settling budget per
+brightness level before measuring precision. Checking the controller's
+actual gain trajectory (not just trusting the sweep's summary numbers)
+showed several of the brightest levels had NOT converged after 8 frames
+— worse, they had all decayed by the exact same factor (0.8^8 ≈ 0.168),
+because a saturated reading stays pinned at full-scale regardless of how
+much the gain has already been reduced, so each step computes the SAME
+correction ratio until the image finally unclips. This is a genuine
+control-systems mechanism, not a bug in the math: a clipped peak-DN
+reading tells the controller "still too bright" but not "by how much" —
+the magnitude information needed for a confident one-step correction is
+literally destroyed by the clipping. An underexposed reading is never
+clipped, so it carries accurate magnitude information and one bounded
+step gets close immediately. Measured directly: 9 frames to recover from
+underexposure vs. 31 frames to recover from saturation, in the same
+trace. Fixed by using adaptive settling (loop until converged, capped at
+a generous maximum) rather than a fixed small iteration count — a real
+example of a convenient shortcut (fixed settling count) silently
+producing a comparison that wasn't actually fair, caught by checking the
+underlying trajectory rather than trusting the summary.
+
+**Operational implication, stated plainly.** A real system should expect
+recovery from sudden BRIGHTENING (e.g. cloud cover clearing, closer
+approach) to be markedly slower than recovery from sudden DIMMING (e.g.
+cloud cover arriving) — not a symmetric "settling time" the way a naive
+mental model of a feedback loop might suggest.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
