@@ -185,6 +185,39 @@ sensor's defect rate (more like 1e-5 to 1e-3).**
   50x50 test grid to be meaningful, without needing an unrealistically large
   grid. Not meant to represent a realistic sensor.
 
+**PRNU is applied as a multiplicative gain to photo-generated signal only
+(spot + background), never to dark current or hot-pixel electrons.**
+- Why: PRNU is specifically a property of the photon-to-electron conversion
+  pathway (quantum efficiency). Dark current and hot-pixel electrons are
+  generated directly in the silicon by thermal excitation — they never pass
+  through that pathway, so there's nothing for a photon-conversion gain to
+  multiply for them. Same fixed-map pattern as hot pixels (`generate_prnu_map`
+  / `apply_prnu` kept as two separate functions), for the same reason: it's a
+  manufacturing property of this sensor, not fresh per-frame randomness.
+
+**PRNU statistics test uses `sigma_prnu = 0.02` (2%, realistic for a
+consumer sensor); the position-dependent-bias test uses `sigma_prnu = 0.05`
+(5%, deliberately larger).**
+- Why the difference: the statistics test just needs to check the *map
+  generation* matches the requested distribution, so a realistic value is
+  the right one to test against. The position-dependent-bias test needs the
+  *effect* to be clearly visible on a modest 25×25 window without requiring
+  an enormous grid to resolve a tiny signal — it demonstrates the mechanism
+  exists, not its realistic magnitude. This mirrors the earlier hot-pixel
+  fraction choice: use a larger, test-friendly value when the point is
+  proving a mechanism, a realistic one when checking a distribution.
+- Why this matters more than a simple flux-calibration error: a *uniform*
+  gain error would not move a centroid at all (scaling every pixel in a
+  window by the same constant leaves a weighted average unchanged — verified
+  directly in `test_uniform_gain_does_not_shift_the_centroid`). PRNU is
+  non-uniform, so the specific ripple pattern sitting "under" the spot
+  changes with the spot's exact sub-pixel position, making it a
+  position-dependent bias in the same family as pixel locking (`psf.py`) —
+  and, being a *fixed* pattern rather than fresh per-frame noise, it does
+  not average away no matter how many frames are collected. Verified
+  directly in `test_prnu_introduces_a_position_dependent_bias`: the same
+  fixed gain map produces a different bias at x0=10.0 than at x0=10.5.
+
 ---
 
 ## Scene (`sptrack/scene.py`)

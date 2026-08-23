@@ -240,6 +240,72 @@ rather than trusting their raw reading. `generate_hot_pixel_mask` above
 produces exactly the kind of map a real calibration step would also
 produce -- here it's ground truth (we generated the defect), there it would
 be measured.
+
+PIXEL-GAIN NON-UNIFORMITY (PRNU)
+-------------------------------------
+Every pixel's photodetector has a very slightly different quantum
+efficiency -- how many of the photons landing on it actually get converted
+to electrons -- because of small manufacturing variations (silicon defects,
+micro-lens or coating thickness differences). Point the exact same light at
+two different pixels and they report very slightly different counts. Unlike
+hot pixels, this is not a rare defect in a handful of pixels: EVERY pixel
+has its own small gain, typically within about 1-2% of the sensor's average
+for a consumer-grade device.
+
+MULTIPLICATIVE, NOT ADDITIVE -- WHY THAT DISTINCTION MATTERS
+------------------------------------------------------------------
+Every noise source above this one in the file is additive: it adds a fixed
+amount (read noise, PRNU's cousin dark current) or a fixed-rate random draw,
+regardless of how bright the pixel already is. PRNU is different -- it's a
+GAIN, multiplying whatever signal is already there:
+
+    observed = true_signal * gain_i,     gain_i ~ Normal(1.0, sigma_prnu^2)
+
+A pixel with 2% higher gain reports 2% more electrons whether 10 photons or
+10,000 land on it. This means PRNU's absolute effect *scales with signal* --
+negligible on a faint pixel, and becomes the dominant error source once
+signal is bright enough that shot noise (which only grows as sqrt(signal))
+falls behind a gain error that grows linearly with signal.
+
+WHY IT ONLY APPLIES TO PHOTO-GENERATED SIGNAL, NOT DARK CURRENT
+---------------------------------------------------------------------
+PRNU is specifically a property of the photon-to-electron conversion
+pathway (quantum efficiency). Dark current electrons are generated directly
+in the silicon by thermal excitation -- they never pass through that
+photodetection pathway at all, so a pixel's photon-conversion gain has
+nothing to multiply for them. PRNU is applied to the spot's signal and the
+background (both are photons entering through the optics), and NOT to dark
+current or hot-pixel electrons, which are generated independently of light.
+
+FIXED SPATIAL PATTERN, LIKE HOT PIXELS
+-------------------------------------------
+Same reasoning as the hot-pixel defect map: this is a manufacturing
+property of one particular sensor, so it is generated once and reused every
+frame, never redrawn -- and for the same reason, map generation and map
+application are kept as two separate functions.
+
+WHY THIS MATTERS MORE THAN IT SOUNDS: A POSITION-DEPENDENT BIAS
+---------------------------------------------------------------------
+A uniform gain error (every pixel off by the same factor) would just be a
+flux-calibration problem -- harmless for position, since scaling every pixel
+in a window by the same constant does not move its centroid at all. PRNU is
+NOT uniform: it is a different small ripple at every pixel. Under the
+spot's PSF, that ripple multiplies different parts of the Gaussian
+differently -- and which part of the ripple pattern sits "under" the peak,
+versus under the wings, changes depending on exactly where the spot's
+sub-pixel centre sits. That makes PRNU a genuinely POSITION-DEPENDENT bias,
+in the same family as pixel locking (from psf.py) rather than simple noise:
+
+  * random noise sources (photon, read, dark) average toward zero bias
+    over many frames, because they are independent draws every frame
+  * PRNU is FIXED, so its effect on any given sub-pixel offset is the
+    same, systematic amount every single frame -- it does not average
+    away, no matter how many frames are collected
+
+This is why PRNU becomes the error floor that a high-SNR system cannot
+average its way past, and why real systems need a flat-field calibration
+(measuring each pixel's gain once and dividing it out) rather than relying
+on more frames to beat it down.
 """
 
 from __future__ import annotations
@@ -322,3 +388,27 @@ def add_hot_pixels(
     mean_hot = hot_rate_e_per_s * exposure_s
     hot_electrons = rng.poisson(mean_hot, size=image.shape).astype(np.float64)
     return image + np.where(hot_mask, hot_electrons, 0.0)
+
+
+def generate_prnu_map(
+    shape: tuple[int, int], sigma_prnu: float, rng: np.random.Generator
+) -> np.ndarray:
+    """Generate a FIXED per-pixel multiplicative gain map.
+
+    Values are centred on 1.0 (average sensor gain) with standard deviation
+    ``sigma_prnu`` (e.g. 0.02 for 2%). Like the hot-pixel mask, this is a
+    manufacturing property of one particular sensor -- generate it once and
+    reuse the same map every frame, never redraw it per frame.
+    """
+    return rng.normal(1.0, sigma_prnu, size=shape)
+
+
+def apply_prnu(photo_signal: np.ndarray, prnu_map: np.ndarray) -> np.ndarray:
+    """Apply the fixed per-pixel gain map to photo-generated signal.
+
+    ``photo_signal`` should be the spot plus background -- light that
+    actually passed through the photon-to-electron conversion pathway.
+    Deliberately does NOT include dark current or hot-pixel electrons, which
+    bypass that pathway entirely (see the module docstring).
+    """
+    return photo_signal * prnu_map

@@ -1,12 +1,15 @@
 import numpy as np
 import pytest
 
+from sptrack.psf import render_spot
 from sptrack.sensor import (
     add_dark_current,
     add_hot_pixels,
     add_photon_noise,
     add_read_noise,
+    apply_prnu,
     generate_hot_pixel_mask,
+    generate_prnu_map,
 )
 
 
@@ -286,3 +289,75 @@ def test_add_hot_pixels_matches_poisson_statistics_at_the_elevated_rate():
 
     assert pooled.mean() == pytest.approx(mean_hot, abs=1.0)
     assert pooled.var() == pytest.approx(mean_hot, abs=10.0)
+
+
+def test_prnu_map_statistics_match_the_requested_gain_distribution():
+    rng = np.random.default_rng(30)
+
+    # sigma_prnu=0.02 (2%): realistic for a consumer sensor. A 100x100 grid
+    # (10,000 pixels) gives SE(mean) = sigma/sqrt(n) ~= 0.0002 and
+    # SE(std) ~= sigma/sqrt(2n) ~= 0.00014 -- tolerances below are ~10x both.
+    sigma_prnu = 0.02
+    prnu_map = generate_prnu_map((100, 100), sigma_prnu, rng)
+
+    assert prnu_map.mean() == pytest.approx(1.0, abs=0.002)
+    assert prnu_map.std() == pytest.approx(sigma_prnu, abs=0.0015)
+
+
+def test_prnu_map_is_fixed_with_same_seed():
+    a = generate_prnu_map((10, 10), 0.02, np.random.default_rng(31))
+    b = generate_prnu_map((10, 10), 0.02, np.random.default_rng(31))
+    assert np.array_equal(a, b)
+
+
+def test_apply_prnu_multiplies_elementwise():
+    signal = np.array([[100.0, 200.0], [300.0, 400.0]])
+    gain = np.array([[1.02, 0.98], [1.00, 1.05]])
+    result = apply_prnu(signal, gain)
+    assert np.array_equal(result, signal * gain)
+
+
+def test_uniform_gain_does_not_shift_the_centroid():
+    # A gain map that's exactly 1.0 everywhere (sigma_prnu=0, the "perfectly
+    # uniform sensor" case) should leave the centroid EXACTLY where it was --
+    # scaling every pixel in a window by the same constant cannot move a
+    # weighted average. This is the baseline the position-dependent-bias
+    # claim below is contrasted against.
+    x0 = 12.3
+    spot = render_spot((25, 25), x0=x0, y0=11.7, flux=1000.0, sigma=1.75)
+    uniform_gain = np.ones((25, 25))
+
+    adjusted = apply_prnu(spot, uniform_gain)
+    h, w = adjusted.shape
+    xs = np.arange(w)
+    cx = (adjusted.sum(axis=0) * xs).sum() / adjusted.sum()
+
+    assert cx == pytest.approx(x0, abs=1e-9)
+
+
+def test_prnu_introduces_a_position_dependent_bias():
+    # The core physical claim in the docstring: a FIXED, non-uniform gain
+    # map biases the centroid by a DIFFERENT amount depending on where the
+    # spot's sub-pixel centre sits -- unlike a uniform gain (zero bias,
+    # tested above) or random per-frame noise (which would average toward
+    # zero, not stay fixed). sigma_prnu=0.05 here is larger than the
+    # realistic 0.02 used in the statistics test above, deliberately, so the
+    # effect is clearly visible without needing a huge window -- this test
+    # demonstrates the mechanism exists, not its realistic magnitude.
+    rng = np.random.default_rng(32)
+    prnu_map = generate_prnu_map((25, 25), sigma_prnu=0.05, rng=rng)
+
+    def centroid_bias(x0: float) -> float:
+        spot = render_spot((25, 25), x0=x0, y0=11.7, flux=1000.0, sigma=1.75)
+        adjusted = apply_prnu(spot, prnu_map)
+        xs = np.arange(adjusted.shape[1])
+        cx = (adjusted.sum(axis=0) * xs).sum() / adjusted.sum()
+        return cx - x0
+
+    bias_a = centroid_bias(10.0)   # spot centred on a pixel
+    bias_b = centroid_bias(10.5)   # spot centred between two pixels
+
+    # The two biases should differ -- if PRNU only ever produced the same
+    # bias regardless of sub-pixel position, it would just be a (harmless,
+    # flux-only) calibration offset rather than a position-dependent one.
+    assert bias_a != pytest.approx(bias_b, abs=1e-6)
