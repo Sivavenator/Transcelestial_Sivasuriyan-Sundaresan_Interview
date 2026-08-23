@@ -65,12 +65,27 @@ harder to localise precisely, independent of anything else in the system.
 
 GAUSSIAN READ NOISE
 ----------------------
+Read noise is the electronic noise added during signal readout -- when the
+sensor converts accumulated charge into a digital number. It is present on
+EVERY pixel, EVERY frame, regardless of exposure time or light level (unlike
+dark current, which at least depends on exposure and temperature). It's
+measured in electrons because at this stage we're still counting actual
+charge carriers, before analogue-to-digital conversion.
+
+WHERE IT COMES FROM
+-----------------------
+  * amplifier noise in the pixel's source follower
+  * ADC quantisation noise
+  * on-chip circuitry interference
+
 Reading a pixel's accumulated charge off the sensor and converting it to a
 digital number goes through analogue electronics (an amplifier, a
 capacitor, an ADC), and each of those stages contributes its own small
 random error. By the central limit theorem, summing many small independent
-error sources produces something close to Gaussian, so read noise is
-modelled as zero-mean Gaussian with a fixed standard deviation:
+error sources produces something close to Gaussian -- so unlike photon
+noise, this is an additive ELECTRONIC process, not a counting process, and
+it does not scale with signal at all. Modelled as zero-mean Gaussian with a
+fixed standard deviation:
 
     N_read ~ Normal(0, sigma_read^2)
 
@@ -79,6 +94,20 @@ The critical difference from photon noise is what it depends on:
     photon noise std  = sqrt(signal)   -- grows with brightness
     read noise std     = sigma_read    -- FIXED, independent of brightness
 
+WHAT sigma_read = 5.0 e- MEANS IN CONTEXT
+----------------------------------------------
+    sensor type                  typical sigma_read
+    cheap phone sensor           10-20 e-
+    typical CMOS (consumer)       3-8 e-
+    ** this project: 5.0 e- **   right here -- solid mid-range
+    scientific sCMOS               1-2 e-
+    EMCCD (cooled)                < 1 e-
+
+5.0 e- is a realistic, conservative-but-reasonable value -- nothing exotic,
+comfortably within the range of an ordinary consumer CMOS sensor.
+
+HOW IT COMPETES WITH SHOT NOISE: TWO REGIMES
+-------------------------------------------------
 This is why read noise is the noise floor for a *dark or faint* scene: at
 low signal, sqrt(signal) is small and sigma_read dominates; at high signal,
 sqrt(signal) eventually outgrows the fixed sigma_read and photon noise takes
@@ -86,6 +115,26 @@ over. Total noise combines the two in quadrature (independent sources, so
 variances add):
 
     Var[total] = signal + sigma_read^2
+    sigma_total = sqrt(sigma_read^2 + lambda)     where lambda = signal (photon count)
+
+    regime                 condition             dominant noise
+    read-noise limited      lambda << sigma_read^2 = 25    dark/dim pixels
+    shot-noise limited      lambda >> 25                   bright pixels
+
+With sigma_read = 5.0 e-, the crossover sits around ~25 photons: below that,
+read noise dominates and no amount of clever estimation recovers what the
+electronics already threw away; above it, Poisson shot noise takes over and
+the sensor is behaving as well as physics allows.
+
+THE PRACTICAL IMPLICATION
+------------------------------
+Read noise sets the noise floor -- the minimum uncertainty per pixel no
+matter what. It is why:
+  * long exposures beat many short ones (shot noise averages down across
+    accumulated signal; read noise is paid once PER READ, so more reads
+    means more read-noise contributions adding up)
+  * deep-sky astrophotographers obsess over read noise
+  * scientific cameras cool the sensor and use low-noise amplifiers
 
 DARK CURRENT
 ---------------

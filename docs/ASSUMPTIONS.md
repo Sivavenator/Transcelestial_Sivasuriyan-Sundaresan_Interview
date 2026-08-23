@@ -109,10 +109,33 @@ combined "add all noise" call.**
   the empirical variance by 50-100+ counts, still 5-10x past the tolerance.
   Wide enough to be robust, not so wide it stops meaning anything.
 
-**Read noise test uses `sigma_read = 5.0` electrons, `n_trials = 200`.**
-- `sigma_read = 5.0`: a plausible real value — typical CMOS/CCD read noise
-  sits roughly in the 1-10 e- range.
-- `n_trials = 200`: derived the same way as the photon-noise test's
+**`sigma_read = 5.0` electrons — a deliberate mid-range choice, not an
+arbitrary round number.**
+- Real sensors span a wide range:
+
+  | sensor type | typical σ_read |
+  |---|---|
+  | cheap phone sensor | 10–20 e⁻ |
+  | typical CMOS (consumer) | 3–8 e⁻ |
+  | **this project: 5.0 e⁻** | right here — solid mid-range |
+  | scientific sCMOS | 1–2 e⁻ |
+  | EMCCD (cooled) | < 1 e⁻ |
+
+  5.0 e⁻ sits comfortably inside "typical consumer CMOS" — realistic and
+  conservative, nothing exotic in either direction.
+- **Why the exact value matters beyond realism — it sets a crossover point.**
+  Read noise and photon (shot) noise add in quadrature:
+  `sigma_total = sqrt(sigma_read^2 + lambda)`, giving two regimes: read-noise
+  limited when `lambda << sigma_read^2 = 25`, shot-noise limited when
+  `lambda >> 25`. So `sigma_read = 5.0` puts the crossover around **~25
+  photons** — below that, read noise is the floor no matter how good the
+  estimator is; above it, the sensor performs as well as photon statistics
+  allow. This crossover number will matter directly once SNR sweeps are
+  built, since it marks where the dominant noise source (and therefore which
+  estimator wins) changes.
+
+**Read noise test uses `n_trials = 200`.**
+- Derived the same way as the photon-noise test's
   `n_trials`, just with the Gaussian version of the variance-estimator
   standard-error formula (`Var(sample variance) ~= 2*sigma^4 / n` for large
   `n`, vs Poisson's `(lambda + 2*lambda^2) / n`). Targeting `SE(pooled
