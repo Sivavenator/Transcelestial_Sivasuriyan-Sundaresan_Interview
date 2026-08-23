@@ -36,13 +36,13 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Monte Carlo trials | NOT STARTED | |
-| Bias vs SNR, per method | NOT STARTED | |
-| Std dev vs SNR, per method | NOT STARTED | |
-| Error-vs-SNR plots | NOT STARTED | |
+| Monte Carlo trials | DONE | `experiments/exp01_snr_characterization.py` — 10 SNR points (log-spaced 3 to 300), 300 trials each, both estimators; results in `results/exp01_snr_characterization.json` |
+| Bias vs SNR, per method | DONE | Same experiment; centroid shows a large low-SNR bias (-235 millipixels at SNR=3) shrinking toward zero as SNR rises, Gaussian fit stays within a few millipixels throughout |
+| Std dev vs SNR, per method | DONE | Same experiment; std curves for both methods plotted against the CRLB across the full SNR range |
+| Error-vs-SNR plots | DONE | `figures/exp01_snr_characterization.png` — bias-vs-SNR and std-vs-SNR (log-log, against CRLB), with embedded explanation panel |
 | Theoretical precision floor stated | DONE | `sptrack/crlb.py::position_crlb` — Fisher information built from the same Jacobian/variance model as the Gaussian fit, so the bound and the fit can't silently disagree about what model is being tested; `tests/test_crlb.py` (monotonic in flux/read noise, symmetric for a symmetric setup, converges to the classical continuous-sampling formula as sigma grows relative to the pixel pitch) |
-| Comparison to the floor | DONE | `tests/test_crlb.py::test_gaussian_fit_approaches_the_crlb_at_high_snr` — measured efficiency (CRLB / empirical std) within 25% of 1.0 over 400 Monte Carlo trials; visualized in `docs/sanity_check_crlb.png` showing the fit tracking the CRLB curve across a 100x flux range while the centroid sits consistently above it |
-| Which method wins in which regime, and why | NOT STARTED | |
+| Comparison to the floor | DONE | `tests/test_crlb.py::test_gaussian_fit_approaches_the_crlb_at_high_snr` (single-point check, 25% tolerance) plus the full sweep in `exp01_snr_characterization.py`: mean efficiency across 10 SNR points is 0.95 for the Gaussian fit vs 0.63 for the centroid |
+| Which method wins in which regime, and why | DONE | Gaussian fit wins at every SNR tested (bias and precision both) — no regime favours the centroid on accuracy; the centroid's advantage is per-frame compute cost, not precision (characterised next, §2d). See `figures/exp01_snr_characterization.png`'s embedded analysis and `docs/ASSUMPTIONS.md` |
 
 ## 2d. Real-time
 

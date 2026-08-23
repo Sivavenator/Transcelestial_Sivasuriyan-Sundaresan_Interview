@@ -714,6 +714,71 @@ attainment.**
 
 ---
 
+## Bugs found while building the SNR characterization experiment (§2c)
+
+**Two real bugs in `gaussian_fit_estimate`, both invisible to all 5 tests
+that existed for it at the time, caught only when the full SNR sweep
+produced impossible results (both estimators reporting bit-identical
+output at every SNR point).**
+
+- **Bug 1 — convergence checked on the wrong step.** The `abs(step) <
+  tol_px` check ran unconditionally, whether or not that step was about to
+  be accepted. When the centroid-seeded starting guess is already close to
+  the true optimum (likely at high SNR specifically), the very first
+  *proposed* step can be tiny even while making chi² worse — and that tiny
+  rejected step was enough to declare "converged," silently returning the
+  untouched centroid seed disguised as a fit result. `est.ok` reported
+  `True` throughout; nothing about the return value signalled that no
+  refinement had actually happened.
+- **Bug 2 — the trial step's chi² used a different variance model than
+  the comparison baseline.** `new_chi2` computed variance as
+  `max(new_mu, 1e-6)`, omitting `+ read_var_e2`, while `old_chi2` correctly
+  included it. This meant the two chi² values could never be judged equal
+  even when the proposed step shrank to exactly zero under heavy damping —
+  an unwinnable comparison that rejected every single iteration, all the
+  way to `max_iter`, regardless of how much damping was applied.
+- **Why neither bug was caught by the 5 tests written for `gaussian_fit.py`
+  alone**: checked directly rather than left a mystery. Bug 1's failure
+  mode is SNR-dependent — it only manifests when the very first proposed
+  step is already tiny, which is far more likely at the specific high-SNR
+  flux level (`50000`) used to debug it than at the moderate flux
+  (`6000`) used in the head-to-head precision test. At that lower flux,
+  the initial step was large enough to escape the trap and iterate
+  genuinely, so `test_fit_is_more_precise_than_the_centroid_at_high_snr`
+  measured a real (if possibly understated) effect and passed. Bug 2 was
+  present throughout, but with Bug 1 masking it in many trials (returning
+  the already-reasonable centroid seed rather than looping to
+  `max_iter`), its symptom (silent non-improvement) rarely became visible
+  enough to fail a bias/precision assertion — the Monte Carlo bias test
+  passed because the wrongly-returned "fit" values were just centroid
+  values, and the centroid is *also* independently proven unbiased, so
+  averaging them still looked unbiased.
+- **What actually surfaced both bugs**: not a unit test, but the full SNR
+  sweep experiment producing a result that was qualitatively impossible —
+  `centroid_eff` and `fit_eff` identical to 2 decimal places at every one
+  of 10 SNR points, which cannot happen from independent noisy Monte Carlo
+  samples by chance. That implausibility was the signal to debug, not a
+  failed assertion.
+- **The fix, verified two ways**: (1) a hand-traced iteration log (printing
+  `old_chi2`/`new_chi2`/accept-reject at every step) that showed the exact
+  mechanism of both bugs before touching any code, and (2) a new
+  regression test, `test_fit_genuinely_iterates_rather_than_silently_returning_the_seed`,
+  that checks directly — at the specific high-SNR condition that exposed
+  Bug 1 — that the fit's output is never bit-identical to the raw centroid
+  seed across 50 trials. This is the test that should have existed from
+  the start: not "is the answer plausible" (which both bugs satisfied) but
+  "did the optimiser actually run."
+- **The corrected result**: Gaussian fit mean efficiency (CRLB / measured
+  std) across the full SNR sweep is `0.95`, centroid is `0.63` — the fit
+  attains the theoretical floor at essentially every SNR tested; the
+  centroid does not, worst in the middle of the range (`0.41` at SNR=8.3).
+  The centroid also carries a large low-SNR bias (`-235` millipixels at
+  SNR=3) that the fit does not. Full curves in
+  `figures/exp01_snr_characterization.png`, raw numbers in
+  `results/exp01_snr_characterization.json`.
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*

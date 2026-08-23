@@ -86,3 +86,44 @@ def test_fit_fails_gracefully_when_the_seed_centroid_fails():
     image = np.zeros((15, 15))
     est = gaussian_fit_estimate(image, half_width=6, sigma=1.75, prior=(7.0, 7.0))
     assert not est.ok
+
+
+def test_fit_genuinely_iterates_rather_than_silently_returning_the_seed():
+    # Regression test for a real bug this project shipped and then caught:
+    # at HIGH SNR specifically -- where the centroid seed already sits very
+    # close to the true optimum -- two bugs combined to make the fit
+    # silently return the untouched centroid seed, disguised as a converged
+    # fit result (est.ok was True, but no actual refinement had happened):
+    #   1. Convergence was checked unconditionally, including on a step
+    #      that was about to be REJECTED (chi2 got worse) -- a tiny
+    #      proposed-but-rejected first step, likely exactly when the seed
+    #      is already close to optimal, was enough to declare "converged".
+    #   2. The trial step's chi2 used a different variance model (missing
+    #      + read_var_e2) than the comparison baseline's chi2, so even a
+    #      step that shrank to zero could never be recognised as "no worse
+    #      than before" -- an infinite loop that burned every iteration
+    #      without ever accepting a single update.
+    # Both are fixed now; this test checks directly, on a bright (high-SNR)
+    # spot, that the returned fit position is NOT bit-identical to the raw
+    # centroid seed -- proof the optimiser actually ran, not just that it
+    # returned SOME plausible-looking number.
+    sim = Simulator(
+        shape=(21, 21), background_e=30.0, sigma_read_e=5.0,
+        hot_fraction=0.0, prnu_sigma=0.0, gradient_frac=0.0, seed=2024,
+    )
+    x0, y0, flux = 10.3, 9.7, 50000.0  # bright: seed starts very close to optimal
+
+    identical_count = 0
+    n_trials = 50
+    for _ in range(n_trials):
+        frame_e = sim.dn_to_electrons(sim.render(x0, y0, flux))
+        c = centroid_estimate(frame_e, half_width=9, prior=(x0, y0))
+        g = gaussian_fit_estimate(
+            frame_e, half_width=9, sigma=sim.sigma, read_var_e2=sim.sigma_read_e**2,
+            prior=(x0, y0),
+        )
+        assert g.ok
+        if c.ok and abs(c.x - g.x) < 1e-9 and abs(c.y - g.y) < 1e-9:
+            identical_count += 1
+
+    assert identical_count == 0

@@ -151,8 +151,37 @@ def gaussian_fit_estimate(
         new_px, _ = pixel_response_1d_with_derivative(xs, new_p[0], sigma)
         new_py, _ = pixel_response_1d_with_derivative(ys, new_p[1], sigma)
         new_mu = new_p[2] * np.outer(new_py, new_px) + new_p[3]
-        new_chi2 = float(np.sum((window - new_mu) ** 2 / np.maximum(new_mu, 1e-6)))
+        # MUST use the identical variance model as old_chi2 below
+        # (mu + read_var_e2, not just mu) -- omitting + read_var_e2 here was
+        # a real bug, caught by testing: it compares new_chi2 and old_chi2
+        # under two DIFFERENT weight models, so they could never be equal
+        # even when new_p == p (step -> 0 under heavy damping), which meant
+        # EVERY step was rejected, every time, regardless of damping.
+        new_var = np.maximum(new_mu, 1e-6) + read_var_e2
+        new_chi2 = float(np.sum((window - new_mu) ** 2 / new_var))
         old_chi2 = float(np.sum(resid_flat**2 * w_flat))
+
+        # Convergence is judged from the PROPOSED step's size, checked
+        # before knowing whether this particular iteration's step gets
+        # accepted below -- not from whether this exact step happened to be
+        # accepted. Two real bugs were found and fixed getting to this:
+        #   1. Checking convergence unconditionally, including on a
+        #      REJECTED step: when the centroid-seeded start is already
+        #      close to the optimum, the very first computed step can be
+        #      tiny even while making chi2 WORSE, which silently returned
+        #      the untouched seed disguised as a converged fit.
+        #   2. Requiring the step to specifically be an ACCEPTED one: once
+        #      the true optimum is reached to within floating-point
+        #      precision, chi2 stops changing at all (the model literally
+        #      doesn't move enough to register), and whether a
+        #      vanishingly-small step nominally "improves" chi2 becomes
+        #      arbitrary numerical noise -- an infinite loop of proposing a
+        #      correct, converged answer and rejecting it forever, burning
+        #      every iteration without ever declaring success. A step this
+        #      small cannot matter at the tol_px precision the caller asked
+        #      for, whether or not this specific iteration's chi2 comparison
+        #      happens to come out favourably.
+        small_step = abs(step[0]) < tol_px and abs(step[1]) < tol_px
 
         if new_chi2 < old_chi2:
             p = new_p
@@ -160,7 +189,7 @@ def gaussian_fit_estimate(
         else:
             lam *= 10.0
 
-        if abs(step[0]) < tol_px and abs(step[1]) < tol_px:
+        if small_step:
             converged = True
             break
 
