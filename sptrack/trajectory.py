@@ -103,6 +103,19 @@ DEFAULT PARAMETERS, AND WHY EACH ONE WAS CHOSEN
       consecutive frames, while drift still wins over the long run because
       it accumulates and jitter's variance does not.
 
+      No spec sheet exists for real gimbal vibration magnitude, so this
+      number is honestly an assumption, not a derivation -- but it is not
+      an UNCONSTRAINED one. It is anchored against a number this project
+      already measured: at SNR~=50 (the operating point used throughout
+      2c/2d), the Gaussian fit's own precision is fit_std ~= 0.007-0.011 px
+      (results/exp01_snr_characterization.json). 0.15 px sits 15-20x above
+      that noise floor. This matters because if jitter were SMALLER than
+      the estimator's own measurement noise, it would be unmeasurable --
+      indistinguishable from estimation error rather than real motion --
+      making "recover the trajectory" meaningless to attempt. 0.15 px
+      guarantees jitter is a genuinely resolvable signal against this
+      project's own measured precision, not a scale picked in isolation.
+
   disturb_freq_hz = 20.0, disturb_amp_px = 0.3
       A representative small-fan/motor tone (tens of Hz is a realistic
       range for small cooling fans and motor cogging), comfortably below

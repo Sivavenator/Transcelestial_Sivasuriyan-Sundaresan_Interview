@@ -974,6 +974,25 @@ excursion stays modest — checked numerically
 (`test_total_excursion_stays_modest_over_the_default_capture_window`),
 not assumed.
 
+**Why `jitter_std_px = 0.15` is an assumption, but not an unconstrained
+one.** The brief gives no real gimbal-vibration spec to derive this
+number from, so it is honestly a physically-plausible pick, not a
+derivation — that should be stated plainly rather than dressed up as more
+precise than it is. What IS a real, checkable constraint is how it
+compares to a number this project already measured: at SNR~=50 (the
+operating point used throughout §2c/§2d), the Gaussian fit's own
+precision is `fit_std ~= 0.007-0.011 px` (`results/exp01_snr_characterization.json`).
+`0.15 px` sits 15-20x above that noise floor. This is the right thing to
+check because if jitter were smaller than the estimator's own measurement
+noise, it would be unmeasurable — indistinguishable from estimation error
+rather than real motion — and the entire "recover the trajectory from
+noisy frames" exercise would be attempting to detect something the
+estimator can't actually see. Anchoring against an already-measured
+project quantity, rather than picking an isolated round number, is the
+same standard applied to every other assumption in this project (e.g.
+`background_e`'s placement relative to the read-noise/shot-noise
+crossover in `simulate.py`).
+
 **Why the default disturbance (20 Hz, 0.3 px amplitude) is the EASY case,
 not the hard one.** The brief separately requires the scenario be made
 deliberately hard (disturbance amplitude near the jitter floor, frequency
