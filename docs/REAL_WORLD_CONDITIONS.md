@@ -314,3 +314,68 @@ scintillation (`gaussian_fit_estimate`'s convergence criterion is
 step-size-based, not fit-quality-based) shows up again here — worth
 reading as a general property of this project's `ok` flag, not a
 condition-specific quirk.
+
+---
+
+## Further considerations (report material, not simulated here)
+
+Deliberately scoped OUT of simulation for this project — recorded here so
+they aren't lost, and so the written report (§7) can discuss them as
+identified-but-not-built, rather than omitted entirely. Surfaced from
+external research the user shared during this project (satellite/deep-
+space laser-communication constraints specifically, going beyond this
+project's ground-terminal-pair framing) [1, 2, 3, 4, 5], cross-checked
+against what this codebase already covers:
+
+- **Sensor saturation.** This project's glare analysis (item 4) covers a
+  raised, non-uniform BACKGROUND level; it does not cover outright
+  detector saturation (pixel value clipping when incoming light exceeds
+  the sensor's full well or the ADC's top code) from direct or
+  near-boresight sunlight. This is a real, distinct failure mode, and
+  already has a named home in this project's own tracker:
+  `docs/PROGRESS.md`'s §5 item "Auto-exposure/gain control, graceful
+  saturation" (not yet built) — the external material is good supporting
+  justification for why that item matters, not something requiring a new
+  entry of its own.
+
+- **Cosmic ray / energetic-particle hits.** Distinct from the FIXED
+  hot-pixel defect map already built (`sensor.py::generate_hot_pixel_mask`
+  — same pixels, every frame): a cosmic ray strike is a rare, spatially
+  RANDOM, single-frame bright pixel or small cluster, closer to an
+  impulsive spatial outlier than a persistent sensor defect. Not modelled
+  in this project; would need its own noise-source function (a low-rate
+  Poisson process in TIME for strike occurrence, combined with a random
+  spatial location per strike) rather than reuse of the existing hot-pixel
+  machinery, which is deliberately fixed-position by design.
+
+- **Impulsive disturbances (e.g. thruster firings).** Everything in this
+  project's dynamic-tracking motion model (§3) is either a random walk
+  (drift), white noise (jitter), or a smooth continuous periodic signal
+  (the disturbance) — genuinely different in character from a transient
+  STEP or IMPULSE event, which a thruster firing physically is. None of
+  §3's existing detection machinery (`sptrack/disturbance.py`'s FFT-based
+  peak search) is designed to find a one-shot event; a real implementation
+  would need a different detector entirely (e.g. a change-point or
+  matched-impulse detector), not a parameter change to the existing one.
+
+- **Angular pointing-precision framing.** This project reports every
+  result in PIXELS. Converting pixel precision into an actual angular
+  pointing budget (given a real link distance and optical focal length)
+  would connect the measured numbers back to the brief's own framing
+  ("hitting a tiny target from an immense distance") more directly for a
+  live audience — a report-writing / narrative addition, not a new
+  simulation.
+
+- **Thermal-driven optical drift / lens distortion.** Connects to
+  `docs/PROGRESS.md`'s §5 item "Calibration (bias/flat-field/lens-
+  distortion) + measured effect" (not yet built) — extreme
+  sunlight/shadow thermal cycling warping optical alignment is a
+  specific, well-motivated justification for why that calibration item
+  matters in a real deployment, again supporting an existing planned item
+  rather than requiring a new one.
+
+[1] https://www.youtube.com/watch?v=NJI79ZpsGkU&t=639
+[2] https://www.mobilityengineeringtech.com/component/content/article/51001-space-lasers-aiming-towards-next-leap-in-global-communications
+[3] https://www.nasa.gov/communicating-with-missions/lasercomms/
+[4] https://www.spiedigitallibrary.org/conference-proceedings-of-spie/13699/1369979/Performance-test-of-adaptive-optics-system-for-laser-communications-on/10.1117/12.3075385.full
+[5] https://icesat-2.gsfc.nasa.gov/space-lasers
