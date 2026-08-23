@@ -40,8 +40,8 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 | Bias vs SNR, per method | NOT STARTED | |
 | Std dev vs SNR, per method | NOT STARTED | |
 | Error-vs-SNR plots | NOT STARTED | |
-| Theoretical precision floor stated | NOT STARTED | |
-| Comparison to the floor | NOT STARTED | |
+| Theoretical precision floor stated | DONE | `sptrack/crlb.py::position_crlb` — Fisher information built from the same Jacobian/variance model as the Gaussian fit, so the bound and the fit can't silently disagree about what model is being tested; `tests/test_crlb.py` (monotonic in flux/read noise, symmetric for a symmetric setup, converges to the classical continuous-sampling formula as sigma grows relative to the pixel pitch) |
+| Comparison to the floor | DONE | `tests/test_crlb.py::test_gaussian_fit_approaches_the_crlb_at_high_snr` — measured efficiency (CRLB / empirical std) within 25% of 1.0 over 400 Monte Carlo trials; visualized in `docs/sanity_check_crlb.png` showing the fit tracking the CRLB curve across a 100x flux range while the centroid sits consistently above it |
 | Which method wins in which regime, and why | NOT STARTED | |
 
 ## 2d. Real-time

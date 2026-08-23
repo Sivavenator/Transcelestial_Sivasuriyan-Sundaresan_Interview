@@ -654,6 +654,66 @@ drawn samples for each.**
 
 ---
 
+## Characterization (`sptrack/crlb.py`)
+
+**The CRLB is built from the SAME Jacobian and variance model as
+`gaussian_fit.py`'s Gauss-Newton solver, not derived independently.**
+- Why: three things need to agree with each other for a characterization
+  study to mean anything — the simulator that renders frames, the
+  estimator that fits them, and the bound that says how well any estimator
+  could do. If the bound came from a different model than the fit uses,
+  "attains the bound" or "falls short of the bound" would both be
+  comparisons against a fiction. Reusing the exact Jacobian
+  (`psf.pixel_response_1d_with_derivative`) and the exact
+  Gaussian-approximated-Poisson variance (`mu + read_var`) makes this
+  structural, not just consistent by coincidence — the Gauss-Newton
+  Hessian a fit computes at every iteration already IS an approximation to
+  the Fisher information; `position_crlb` just evaluates that same
+  quantity at the true parameters and inverts it.
+
+**FINDING (caught during testing, not assumed): the pixel-integrated CRLB
+sits measurably above the classical continuous-sampling formula
+(`sigma/sqrt(N)`) at this project's sigma=1.75, and that gap is real
+physics, not a bug.**
+- What happened: a test asserting agreement with the classical formula to
+  1% failed at a measured 1.35% gap. Rather than loosen the tolerance
+  blindly, the mechanism was checked: sweeping `sigma` at fixed (huge)
+  flux showed the gap shrinks monotonically as `sigma` grows relative to
+  the fixed 1-pixel sampling pitch — 15.1% at `sigma=0.5`, 1.35% at
+  `sigma=1.75`, 0.04% at `sigma=10`. That is exactly the signature of a
+  genuine pixelation effect converging to the continuous-sampling limit as
+  relative sampling gets finer, not a coding error — and it matches known
+  results in the localisation-microscopy literature (e.g. Mortensen et al.
+  2010's pixel-size correction term).
+- What changed as a result: the test's tolerance was corrected to 2%
+  (comfortably above the verified ~1.35% gap) with the sigma-sweep
+  evidence recorded in the test's own comment, and the same finding was
+  written into `crlb.py`'s docstring directly — this is a property of the
+  bound worth knowing about when using it, not just a note about how one
+  test's number was chosen.
+
+**The Gaussian fit's efficiency (CRLB / empirical std) is checked to land
+within 25% of 1.0 over 400 Monte Carlo trials, not asserted as exact
+attainment.**
+- Why not tighter: asymptotic efficiency is a large-sample-size /
+  high-SNR *limiting* property, and empirical std from 400 trials carries
+  its own sampling noise — demanding near-exact agreement would make the
+  test itself unreliable (prone to failing on ordinary statistical
+  fluctuation) rather than meaningfully checking the right thing. 25%
+  margin is wide enough to be robust while still catching a genuine
+  implementation bug (a real error in the Jacobian or weighting scheme
+  would show efficiency far outside this band, not just outside it by a
+  little).
+- What this result actually shows, visualized in
+  `docs/sanity_check_crlb.png`: across a 100x flux sweep, the Gaussian
+  fit's measured std tracks the CRLB curve closely at every flux tested,
+  while the centroid's sits visibly and consistently above it — the
+  centroid's gap from the floor does not close as flux increases, meaning
+  it is a genuine *efficiency* loss (information discarded by the
+  method), not extra noise that would average away with a brighter spot.
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*
