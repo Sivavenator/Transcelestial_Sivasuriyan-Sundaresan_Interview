@@ -28,7 +28,7 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Method 1: windowed intensity-weighted centroid + background subtraction | NOT STARTED | |
+| Method 1: windowed intensity-weighted centroid + background subtraction | DONE | `sptrack/estimators/centroid.py::centroid_estimate`, `sptrack/estimators/base.py`; `tests/test_centroid.py` (recovers true position on a clean image, background subtraction proven to remove a real window-centre bias not just cosmetic, clip/no-clip agree within the understood border-leakage effect, edge-clamped window handled, approximately unbiased against the full Simulator over 300 Monte Carlo trials) |
 | Method 2: 2D Gaussian fit (LSQ or MLE) | NOT STARTED | |
 | Explanation of why each behaves as it does | NOT STARTED | |
 

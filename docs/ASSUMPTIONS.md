@@ -436,6 +436,57 @@ statistics of a full frame with everything enabled.**
 
 ---
 
+## Estimators (`sptrack/estimators/`)
+
+**Window and background-estimation utilities (`base.py`) are shared by
+every estimator, rather than each estimator implementing its own.**
+- Why: this matters for fairness once estimators are compared later (§2c
+  Characterization) — if one estimator used a larger window or a better
+  background estimate than another, a measured precision difference would
+  be measuring THAT difference, not a real difference between the methods.
+
+**Background is estimated from the window's BORDER only (median of the
+outer 2 pixels), never the whole window.**
+- Why not the whole window: the spot sits near the centre, so including
+  centre pixels in a background estimate would let the spot's own signal
+  drag the estimate upward, causing systematic over-subtraction.
+- Why median, not mean: robust to a single outlier (a hot pixel landing on
+  the border, or an unlucky noise spike) — a mean would let one bad pixel's
+  error propagate into every pixel's background-subtracted value.
+
+**FINDING (not assumed, discovered while testing): even with zero sensor
+noise, `border_median_background` is not perfectly exact — the PSF's
+Gaussian tail still reaches the border pixels at ordinary window sizes,
+nudging the estimate very slightly above the true flat pedestal.**
+- What happened: two tests were first written assuming a background
+  estimate and a `clip_negative`/no-clip comparison would be *exact* on a
+  noise-free image (tolerances of `1e-9` and `1e-6`). Both failed. Checked
+  directly rather than loosening blindly: at `half_width=7` (~4 sigma) on
+  `sigma=1.75`, border pixel values ranged up to ~20.07 against a true
+  pedestal of 20.0 — small, but enough to pull the median background
+  estimate to ~20.012. That in turn pushed ~50 of 225 pixels fractionally
+  negative (down to about −0.012) with **no sensor noise involved at all**.
+- Why this happens: a Gaussian's tail is never exactly zero at any finite
+  distance — "4 sigma" is a *practically* negligible amount of flux, not a
+  hard cutoff, and a large enough window will always pick up some residual
+  trace of it at the border.
+- What changed as a result: the affected tests' tolerances were corrected
+  to reflect this real, understood, small effect (`abs=1e-3` to `1e-2`
+  scale) instead of an idealised exact match, with the mechanism spelled
+  out in each test's comment rather than a bare number.
+- A separate test (`test_centroid_recovers_true_position_on_a_clean_flat_background_image`,
+  earlier draft) additionally caught a real test-design flaw this same
+  session: an *asymmetrically placed* window (centred on a stale prior, not
+  near the spot's true position) left only a 2.7-sigma margin on the near
+  edge — well inside where truncation bias is measurable (~0.009 px in that
+  case). Fixed by placing the window near the true position, as any real
+  tracking loop would (using the previous frame's estimate as the prior).
+  Not an estimator bug either time — both were test-setup errors, caught by
+  checking the actual numbers rather than trusting an assumption about "far
+  enough."
+
+---
+
 *(This document will grow as each new part of the simulator — remaining
 noise sources, SNR control, dynamic tracking, etc. — introduces its own
 assumptions.)*
