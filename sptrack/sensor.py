@@ -324,6 +324,24 @@ averages over enough pixels that the curve can still *look* like one smooth
 multi-pixel trend rather than obviously different wiggles each period --
 which is exactly why this was checked numerically rather than left as a
 visual impression.)
+
+A SECOND DETAIL: BOTH SWEEP DIRECTIONS BEHAVE THE SAME WAY, AND A ZERO
+CROSSING DOES NOT MEAN "SAFE"
+--------------------------------------------------------------------------------
+Sweeping the spot vertically (varying y0 at fixed x0) shows the identical
+qualitative behaviour as sweeping it horizontally -- a smooth,
+non-periodic, generally non-zero bias, confirming this is a property of the
+fixed gain map rather than an artefact of one axis. One detail worth being
+precise about: the vertical sweep's bias curve happens to cross exactly
+zero at one specific position, since it swings from negative to positive
+and a continuous curve must pass through zero somewhere in between. That
+crossing is a coincidence of this particular random map at that exact
+position, not a general cancellation -- a real system has no way to know
+where it is without already having measured (calibrated) the gain map, at
+which point it would just correct the bias directly rather than search for
+a lucky spot. So "sometimes crosses zero" does not weaken the conclusion:
+the bias is still present at almost every position, unpredictably, and
+still cannot be trusted away by hoping for that one coincidence.
 """
 
 from __future__ import annotations
