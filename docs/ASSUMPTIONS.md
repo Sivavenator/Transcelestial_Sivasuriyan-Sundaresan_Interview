@@ -1115,5 +1115,76 @@ the detection method uncovered only now.
 
 ---
 
+## Dynamic tracking: the hard scenario and its failure modes (§3, part 4)
+
+Full reasoning lives in `experiments/exp03d_hard_scenario.py`'s module
+docstring; this section records the actual measured results (a real
+10-trials-per-level Monte Carlo sweep, not a single lucky/unlucky run —
+an earlier single-realization prototype was explicitly discarded once the
+proper sweep was run, because its numbers weren't reliable enough to
+report).
+
+**Why SNR=5 (10x below the easy scenario's 50).** At SNR=50, the fit's
+own precision (~0.007-0.011 px) is negligible next to jitter (0.15 px) —
+why the easy scenario's recovered-vs-ground-truth detection results came
+out nearly identical. At SNR=5, fit_std~=0.132 px becomes comparable to
+jitter itself — the deliberate point: estimation noise now genuinely
+competes with mechanical jitter as a noise source, not a decoration on
+top of an already-solved problem.
+
+**Failure mode 1: amplitude-bias toward a measurable noise floor.**
+Sweeping true disturbance amplitude from 0.30 px down through 0.10, 0.05,
+0.02, to 0.00 px (SNR=5, freq=2.5 Hz, 10 trials/level, phase randomised
+per trial):
+
+| true amp (px) | detected amp (mean +/- std) | freq within 1 bin |
+|---|---|---|
+| 0.30 | 0.289 +/- 0.013 | 10/10 |
+| 0.10 | 0.097 +/- 0.013 | 10/10 |
+| 0.05 | 0.057 +/- 0.020 | 8/10 |
+| 0.02 | 0.033 +/- 0.007 | 5/10 |
+| 0.00 | 0.033 +/- 0.007 | 0/10 (nothing true to match) |
+
+Even with literally zero true disturbance, the detector reports a nonzero
+amplitude (0.033 px) — direct proof of the mechanism: the reported value
+is always the MAXIMUM over ~2000 candidate frequency bins, and pure noise
+alone produces a nonzero maximum. This is the same statistical phenomenon
+as Rice/Rayleigh noise-floor bias in radar and MRI peak detection — a
+property of any peak-search amplitude estimator, not a bug specific to
+this project's `detect_disturbance`. Practically: below roughly the
+measured floor, a real disturbance becomes indistinguishable from no
+disturbance at all by amplitude alone; frequency agreement (which also
+degrades, but more gracefully — 100% -> 100% -> 80% -> 50% within one bin
+as amplitude drops) is a more robust "is something really there" signal
+at low amplitude than the amplitude reading itself.
+
+**Failure mode 2: a genuinely different failure — the fixed exclusion
+threshold has a blind spot.** Separately (SNR=50, easy amplitude 0.3 px —
+deliberately the easy scenario's own amplitude, to isolate this as a
+frequency-placement failure rather than an amplitude one), placing the
+disturbance frequency at or near the fixed `exclude_below_hz=2.0 Hz`
+threshold:
+
+| true freq (Hz) | detected freq (Hz) | detected amp (px, true=0.300) |
+|---|---|---|
+| 1.5 (excluded) | 4.639 | 0.029 |
+| 1.9 (excluded) | 2.197 | 0.113 |
+| 2.0 (boundary) | 2.197 | 0.200 |
+
+Even with an easily-detectable amplitude, the detector locks onto the
+WRONG frequency and badly misreads amplitude once the true frequency sits
+close to the exclusion boundary. This is qualitatively different from
+failure mode 1: not a graceful, continuous degradation, but a hard,
+fixed threshold creating a blind spot exactly where a real disturbance
+could plausibly sit. It is a genuine limitation of the current design
+(`sptrack/disturbance.py`'s `exclude_below_hz` is a fixed hyperparameter,
+not derived from the actual drift realisation in a given sequence) worth
+stating honestly rather than hiding: a more robust design would estimate
+where drift's power has actually fallen off in THIS sequence (e.g. from
+an explicit drift fit/subtraction) rather than assuming a fixed cutoff
+works for every possible disturbance frequency.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*

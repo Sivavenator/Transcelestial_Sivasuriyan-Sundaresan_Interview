@@ -1,0 +1,62 @@
+{
+  "hard_snr": 5.0,
+  "hard_freq_hz": 2.5,
+  "exclude_below_hz": 2.0,
+  "n_trials": 10,
+  "freq_resolution_hz": 0.244140625,
+  "noise_floor_amp_px": 0.03345015556927273,
+  "amplitude_sweep": {
+    "0.3": {
+      "detected_amp_mean": 0.28928371666863095,
+      "detected_amp_std": 0.013219137402314559,
+      "detected_freq_mean": 2.44140625,
+      "freq_within_one_bin_frac": 1.0,
+      "mean_failed_fits": 0.1
+    },
+    "0.1": {
+      "detected_amp_mean": 0.09665696457291575,
+      "detected_amp_std": 0.01303585983093549,
+      "detected_freq_mean": 2.44140625,
+      "freq_within_one_bin_frac": 1.0,
+      "mean_failed_fits": 0.0
+    },
+    "0.05": {
+      "detected_amp_mean": 0.05693548915641624,
+      "detected_amp_std": 0.020075231911874138,
+      "detected_freq_mean": 2.44140625,
+      "freq_within_one_bin_frac": 0.8,
+      "mean_failed_fits": 0.0
+    },
+    "0.02": {
+      "detected_amp_mean": 0.033064998068091794,
+      "detected_amp_std": 0.006641479732240811,
+      "detected_freq_mean": 3.6865234375,
+      "freq_within_one_bin_frac": 0.5,
+      "mean_failed_fits": 0.1
+    },
+    "0.0": {
+      "detected_amp_mean": 0.03345015556927273,
+      "detected_amp_std": 0.006537995748228559,
+      "detected_freq_mean": 4.2236328125,
+      "freq_within_one_bin_frac": 0.0,
+      "mean_failed_fits": 0.0
+    }
+  },
+  "boundary_failure_mode": {
+    "1.5": {
+      "n_failed_fits": 0,
+      "detected_freq_hz": 4.638671875,
+      "detected_amp_px": 0.02876750677344156
+    },
+    "1.9": {
+      "n_failed_fits": 0,
+      "detected_freq_hz": 2.197265625,
+      "detected_amp_px": 0.11291535738216682
+    },
+    "2.0": {
+      "n_failed_fits": 0,
+      "detected_freq_hz": 2.197265625,
+      "detected_amp_px": 0.19966764047112204
+    }
+  }
+}
