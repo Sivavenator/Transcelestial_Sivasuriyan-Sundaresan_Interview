@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sptrack.sensor import add_photon_noise
+from sptrack.sensor import add_photon_noise, add_read_noise
 
 
 def test_photon_noise_mean_and_variance_match_poisson_statistics():
@@ -67,4 +67,66 @@ def test_photon_noise_is_reproducible_with_same_seed():
     mean_image = np.full((5, 5), 100.0)
     a = add_photon_noise(mean_image, np.random.default_rng(7))
     b = add_photon_noise(mean_image, np.random.default_rng(7))
+    assert np.array_equal(a, b)
+
+
+def test_read_noise_mean_and_variance_match_gaussian_statistics():
+    rng = np.random.default_rng(3)
+
+    # sigma_read = 5.0 e-: a plausible real sensor value (typical CMOS/CCD
+    # read noise sits roughly in the 1-10 e- range).
+    sigma_read = 5.0
+    image = np.zeros((10, 10))  # baseline of 0; read noise is additive
+
+    # n_trials = 200 is derived the same way as the photon-noise test: for a
+    # Gaussian, Var(sample variance) ~= 2*sigma^4 / n for large n, so
+    # SE(pooled variance) = sigma^2 * sqrt(2 / n_total). Targeting an SE of
+    # ~1% of sigma_read^2 = 25 (i.e. SE ~= 0.25), with n_total = n_trials * 100:
+    #   0.25 = 25 * sqrt(2 / n_total)  =>  n_total = 2 / (0.25/25)^2 = 20,000
+    #   n_trials = 20,000 / 100 = 200
+    n_trials = 200
+    samples = np.stack([add_read_noise(image, sigma_read, rng) for _ in range(n_trials)])
+    pooled = samples.ravel()
+
+    # Tolerances at ~10x the derived standard errors, same reasoning as the
+    # photon-noise test above: robust against sampling luck, still tight
+    # enough to catch a real scaling bug.
+    assert pooled.mean() == pytest.approx(0.0, abs=0.35)   # SE(mean) ~= 5/sqrt(20000) ~= 0.035
+    assert pooled.var() == pytest.approx(sigma_read**2, abs=2.5)  # SE(var) ~= 0.25
+
+
+def test_read_noise_magnitude_is_independent_of_signal_brightness():
+    # The whole point of read noise, distinguishing it from photon noise: its
+    # magnitude does not depend on how bright the underlying pixel is. Apply
+    # the same sigma_read to a dark image and a bright one, with two
+    # independently-seeded (not shared) generators so the two noise draws are
+    # genuinely separate samples, and confirm the empirical noise std comes
+    # out the same either way.
+    sigma_read = 5.0
+    n_trials = 200
+    dark_image = np.zeros((10, 10))
+    bright_image = np.full((10, 10), 5000.0)
+
+    dark_rng = np.random.default_rng(101)
+    bright_rng = np.random.default_rng(102)
+    dark_samples = np.stack(
+        [add_read_noise(dark_image, sigma_read, dark_rng) for _ in range(n_trials)]
+    )
+    bright_samples = np.stack(
+        [add_read_noise(bright_image, sigma_read, bright_rng) for _ in range(n_trials)]
+    )
+
+    dark_std = (dark_samples - dark_image).ravel().std()
+    bright_std = (bright_samples - bright_image).ravel().std()
+
+    # Same n_trials/tolerance derivation as above: SE(std) ~= sigma/sqrt(2n) ~= 0.13,
+    # so a tolerance of 1.0 is a comfortable ~8x margin.
+    assert dark_std == pytest.approx(sigma_read, abs=1.0)
+    assert bright_std == pytest.approx(sigma_read, abs=1.0)
+
+
+def test_read_noise_is_reproducible_with_same_seed():
+    image = np.full((5, 5), 100.0)
+    a = add_read_noise(image, 5.0, np.random.default_rng(11))
+    b = add_read_noise(image, 5.0, np.random.default_rng(11))
     assert np.array_equal(a, b)

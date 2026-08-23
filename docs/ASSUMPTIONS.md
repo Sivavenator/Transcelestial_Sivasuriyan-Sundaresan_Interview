@@ -96,6 +96,17 @@ combined "add all noise" call.**
   the empirical variance by 50-100+ counts, still 5-10x past the tolerance.
   Wide enough to be robust, not so wide it stops meaning anything.
 
+**Read noise test uses `sigma_read = 5.0` electrons, `n_trials = 200`.**
+- `sigma_read = 5.0`: a plausible real value — typical CMOS/CCD read noise
+  sits roughly in the 1-10 e- range.
+- `n_trials = 200`: derived the same way as the photon-noise test's
+  `n_trials`, just with the Gaussian version of the variance-estimator
+  standard-error formula (`Var(sample variance) ~= 2*sigma^4 / n` for large
+  `n`, vs Poisson's `(lambda + 2*lambda^2) / n`). Targeting `SE(pooled
+  variance) ~= 1%` of `sigma_read^2 = 25` (i.e. `SE ~= 0.25`), with
+  `n_total = n_trials * 100 pixels`: `0.25 = 25 * sqrt(2 / n_total)` solves
+  to `n_total = 20,000`, so `n_trials = 200`.
+
 ---
 
 *(This document will grow as each new part of the simulator — remaining

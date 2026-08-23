@@ -62,6 +62,30 @@ a fundamental physical limit set by the statistics of light itself, not an
 engineering shortcoming. No algorithm, however clever, can beat this without
 extra prior knowledge about the signal. This is why a fainter spot is always
 harder to localise precisely, independent of anything else in the system.
+
+GAUSSIAN READ NOISE
+----------------------
+Reading a pixel's accumulated charge off the sensor and converting it to a
+digital number goes through analogue electronics (an amplifier, a
+capacitor, an ADC), and each of those stages contributes its own small
+random error. By the central limit theorem, summing many small independent
+error sources produces something close to Gaussian, so read noise is
+modelled as zero-mean Gaussian with a fixed standard deviation:
+
+    N_read ~ Normal(0, sigma_read^2)
+
+The critical difference from photon noise is what it depends on:
+
+    photon noise std  = sqrt(signal)   -- grows with brightness
+    read noise std     = sigma_read    -- FIXED, independent of brightness
+
+This is why read noise is the noise floor for a *dark or faint* scene: at
+low signal, sqrt(signal) is small and sigma_read dominates; at high signal,
+sqrt(signal) eventually outgrows the fixed sigma_read and photon noise takes
+over. Total noise combines the two in quadrature (independent sources, so
+variances add):
+
+    Var[total] = signal + sigma_read^2
 """
 
 from __future__ import annotations
@@ -77,3 +101,17 @@ def add_photon_noise(mean_image: np.ndarray, rng: np.random.Generator) -> np.nda
     non-negative; values are used directly as the per-pixel Poisson rate.
     """
     return rng.poisson(mean_image).astype(np.float64)
+
+
+def add_read_noise(
+    image: np.ndarray, sigma_read: float, rng: np.random.Generator
+) -> np.ndarray:
+    """Add zero-mean Gaussian read noise with a fixed standard deviation.
+
+    Unlike photon noise, ``sigma_read`` does not depend on the image's
+    brightness -- it's a property of the sensor's readout electronics, the
+    same in a bright pixel and a dark one. Can produce negative values (real
+    sensors handle this with a black-level pedestal so raw digital numbers
+    stay non-negative; that pedestal is a separate, later concern).
+    """
+    return image + rng.normal(0.0, sigma_read, size=image.shape)
