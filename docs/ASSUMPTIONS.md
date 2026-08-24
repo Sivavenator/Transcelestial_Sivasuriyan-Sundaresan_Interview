@@ -1726,9 +1726,10 @@ and must not be reintroduced.
 
 Gaps against `spotlab`. The panel asked what was not reproduced. Three
 analysis items were missing and have been added: pixel locking
-(`exp06a`), window size (`exp06b`), and Kalman filtering (`exp07`). Three
-deployment items remain outstanding: the C++ implementation, the ROS2
-node, and the Docker image, along with `run_all.py`.
+(`exp06a`), window size (`exp06b`), and Kalman filtering (`exp07`).
+Three deployment items were also added and, unlike `spotlab`, actually
+built and verified rather than left as intent: the C++ implementation,
+the ROS2 node, and the Docker image, along with `run_all.py`.
 
 Defensibility. The panel asked for a document answering, for every
 concept, what it does and why it was chosen from first principles,
@@ -1747,38 +1748,96 @@ needs a plate scale this project does not have.
 
 Timing reproducibility. Re-running every experiment confirmed that all
 seeded results reproduce exactly. The wall-clock timings in `exp02` and
-`exp05e` do not: the Gaussian fit's observed maximum moved from 1010 to
-1508 microseconds between runs. Those numbers are machine-dependent and
-are to be quoted as ranges with that caveat, not as constants.
+`exp05e` do not: the Gaussian fit's observed maximum moved between three
+separate runs on this machine, 1010, then 1508, then 993 microseconds.
+Those numbers are machine-dependent and are to be quoted as ranges with
+that caveat, not as constants.
+
+`run_all.py`'s full run (all 19 experiments, no `--quick`) completed in
+7.3 minutes on this machine with no failures, confirming the numeric
+results above (mean efficiency 0.63/0.95/0.84, all nineteen scripts
+exiting cleanly). That total is also machine-dependent and given as a
+single measured data point, not a guaranteed bound.
 
 ## Deployment artefacts: C++, ROS2, Docker
 
 Ported from `spotlab` at the user's request, to demonstrate the same
 skills the job description names, not because the brief requires them.
 
-Why written but not built. The development machine used for this whole
-project has no C++ compiler, no CMake, no Docker, and no WSL. Claiming
-these artefacts work without running them would be exactly the kind of
-unverified assertion this project's standing practice exists to prevent,
-so `cpp/README.md`, `ros2/README.md`, and the relevant rows in
-`docs/PROGRESS.md` state plainly that they are unbuilt and give exact
-commands for the Ubuntu 24.04 VM already used to validate this project's
-Python dependencies.
+Why written before it could be built. The development machine used for
+the rest of this project has no C++ compiler, no CMake, no Docker, and
+no WSL. Claiming these artefacts work without running them would be
+exactly the kind of unverified assertion this project's standing
+practice exists to prevent, so `cpp/README.md`, `ros2/README.md`, and
+the relevant rows in `docs/PROGRESS.md` stated plainly that they were
+unbuilt and gave exact commands for the Ubuntu 24.04 VM already used to
+validate this project's Python dependencies.
+
+C++ and Docker have since been built and verified on that VM.
+`ctest` passes `cross_validation_against_python` on all 28 exported
+cases at the documented tolerances, and `docker build` succeeds end to
+end, including a passing Python test suite and C++ cross-validation
+inside the image. The compiled centroid and fit measured roughly 9x and
+24x faster than Python at the median (3.7us vs 33.2us; 17.9us vs
+421.9us), and the fit's worst observed frame (294.2us) is comfortably
+under the 1000us budget, unlike Python's (993.3us). One number does not
+fit that pattern: the C++ max/median ratio is far larger than Python's
+(centroid 60x vs 1.8x), most likely VM scheduling jitter on a single
+worst-of-20000 sample rather than an algorithmic tail, reported as
+measured since it was not independently isolated. ROS2 has since been
+built and run too: `colcon build` succeeds and
+`ros2 run beacon_tracker beacon_tracker_node` starts cleanly, resolves
+all imports, and subscribes to its image topic, logging
+`beacon_tracker up: estimator=centroid, half_width=9, sigma=1.75 px,
+topic=/camera/image_raw`. Not checked: behaviour against a real camera
+driver or live, non-synthetic data, since this project has no image
+publisher to feed it.
+
+Two more real bugs, specific to the ROS2 package, found only once a
+build was possible. First, no `setup.cfg`: `ament_python` packages need
+one pointing `install_scripts` at `$base/lib/beacon_tracker`, standard
+boilerplate `ros2 pkg create` normally generates; without it, setuptools
+used its own default location, so the executable was built but
+`ros2 run` reported "No executable found", a case where the build
+reported success while producing something unusable. Second,
+`package.xml` declared `python3-numpy` but not `python3-scipy`, even
+though `sptrack/psf.py` needs `scipy.special.erf`; the node failed at
+import time with `ModuleNotFoundError`, because `ros2 run` uses ROS2's
+system Python interpreter, not this project's own `.venv`, so having
+scipy in the venv did not help. Building from a symlink into the shared
+VirtualBox folder also failed, the same `vboxsf` symlink limitation that
+affected the Python `venv` earlier in the project, this time inside an
+`ament_python` development-mode install step; fixed by copying the
+package into the ROS2 workspace instead of symlinking it, and the fix
+is now documented in `ros2/README.md` alongside the earlier venv
+instance of the same underlying VM limitation.
 
 Two real cross-language bugs found by inspection rather than by testing,
-since testing was not possible here. Python's `round()` is round-half-
-to-even; C++'s `std::lround` rounds half away from zero. Confirmed
-directly in this project's own Python: `round(10.5) == 10` and
-`round(11.5) == 12`. At an exact half-pixel prior position the two would
-select different window origins and silently disagree by a pixel.
-`extract_window`'s C++ port uses `std::nearbyint`, which defaults to
-round-half-to-even, instead. Separately, numpy 2's `repr()` on a scalar
-emits `np.float64(1.23)` rather than `1.23`, which broke the first
-version of `tools/export_cpp_vectors.py`: the generated CSV was
+since testing was not possible before the VM was available. Python's
+`round()` is round-half-to-even; C++'s `std::lround` rounds half away
+from zero. Confirmed directly in this project's own Python: `round(10.5)
+== 10` and `round(11.5) == 12`. At an exact half-pixel prior position the
+two would select different window origins and silently disagree by a
+pixel. `extract_window`'s C++ port uses `std::nearbyint`, which defaults
+to round-half-to-even, instead. Separately, numpy 2's `repr()` on a
+scalar emits `np.float64(1.23)` rather than `1.23`, which broke the
+first version of `tools/export_cpp_vectors.py`: the generated CSV was
 syntactically valid Python but not valid C++ input. Caught by inspecting
 the actual generated file rather than assuming the string conversion
 worked, and now guarded by
 `tests/test_export_cpp_vectors.py::test_generated_csv_contains_no_numpy_repr_leakage`.
+Both fixes held up under the subsequent passing cross-validation run,
+which is evidence they were sufficient, not proof no other case could
+disagree.
+
+A third, unrelated bug turned up only once building was possible: the
+Dockerfile's `COPY . .` picked up a `cpp/build/` directory generated by
+an earlier host-side cmake run on the shared VM folder. That directory's
+`CMakeCache.txt` carried the host's absolute path, which cmake correctly
+refused to reuse once it landed at a different path inside the
+container. `.gitignore` already excluded `cpp/build/` from git, but
+Docker's build context does not consult `.gitignore`; fixed by adding
+`.dockerignore` with the same exclusions.
 
 Why cross-validation rather than independent C++ unit tests.
 Independent tests on each side would confirm self-consistency, not

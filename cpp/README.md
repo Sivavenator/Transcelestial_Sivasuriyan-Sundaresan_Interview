@@ -8,17 +8,18 @@ analytic Jacobian was the algorithm in the first place.
 
 ## Status
 
-Not built or run on the development machine used for the rest of this
-repository: no C++ compiler, no CMake, and no WSL are present there. The
-code is written to compile against a standard C++17 toolchain and its
-correctness rests on `cpp/tests/test_against_python.cpp`, which has not
-itself been executed. Build and validate it before trusting it, most
-directly inside the Ubuntu 24.04 VirtualBox VM already used to validate
-this project's Python dependencies.
+Built and cross-validated on an Ubuntu 24.04 VirtualBox VM (the
+development machine used for the rest of this repository has no C++
+compiler, CMake, or WSL, so it could not do this itself).
+`cross_validation_against_python` passed on all 28 exported cases at
+the documented tolerances (1e-9 px centroid, 1e-6 px fit). The benchmark
+numbers below are also from that run.
 
 Two known cross-language pitfalls were found and fixed by inspection
-before any build was attempted, not by testing, since testing was not
-possible here:
+before any build was attempted, since testing was not possible on the
+development machine. The subsequent passing cross-validation run is
+consistent with these being the only such bugs, though a passing test
+on 28 cases is evidence, not a proof that no other case could disagree:
 
 - Python's `round()` is round-half-to-even; `std::lround` rounds half
   away from zero. At an exact `.5` sub-pixel position the two would pick
@@ -70,6 +71,27 @@ both have real numbers from the same machine. The Python numbers alone
 already showed the fit's worst observed frame exceeding the 1 ms budget;
 whether the compiled version has the same tail is an open question this
 benchmark answers, not one this port assumes an answer to.
+
+Measured on an Ubuntu 24.04 VirtualBox VM, 20000 frames, 21x21 window,
+half-width 9 (Python's `exp02` numbers alongside, same conditions):
+
+| method | median (C++/Python, us) | p99 (C++/Python) | max (C++/Python) |
+|---|---|---|---|
+| centroid | 3.7 / 33.2 | 9.1 / 42.9 | 222.6 / 59.3 |
+| gaussian fit | 17.9 / 421.9 | 39.7 / 846.5 | 294.2 / 993.3 |
+
+The fit's max (294.2us) is comfortably under the 1000us budget, unlike
+the Python max (993.3us), which was uncomfortably close to it. This
+confirms Python's near-miss was interpreter/numpy overhead, not
+something inherent to the Gauss-Newton iteration itself.
+
+One number does not fit the pattern: the C++ max/median ratio is far
+larger than Python's (centroid 60x vs 1.8x), even though C++ is faster
+at every other percentile. This is a single worst-of-20000 sample on a
+VM sharing a host with other processes, and is more likely scheduling
+jitter than an algorithmic tail, but it is reported as measured rather
+than explained away, since it was not independently isolated (e.g. by
+pinning the process or repeating the run).
 
 ## What was ported and what was not
 

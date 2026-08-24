@@ -115,7 +115,7 @@ int main() {
     }
 
     if (sink == 12345.6789) {
-        std::printf("");  // keep the optimiser from discarding the work
+        std::printf("%f\n", sink);  // keep the optimiser from discarding the work
     }
     return 0;
 }

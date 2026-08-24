@@ -885,6 +885,6 @@
   "best_std_px": 0.008759263875200004,
   "best_lag_ms": 0.00293745796008241,
   "best_gain": 0.9987078470693541,
-  "kalman_us_per_update": 9.122375000151806,
-  "alphabeta_us_per_update": 0.27000500122085214
+  "kalman_us_per_update": 9.33462000102736,
+  "alphabeta_us_per_update": 0.2719050011364743
 }

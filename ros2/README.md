@@ -7,32 +7,67 @@ design reasoning.
 
 ## Status
 
-This package has not been built or run against a real ROS2 installation.
-The development machine used for the rest of this repository has no C++
-toolchain, no CMake, no Docker, and no WSL, so nothing in `cpp/` or
-`ros2/` has been compiled or executed here. Every claim below about how
-to build and run it is a set of instructions to follow on a machine that
-does have ROS2 installed, not a report of having done so.
+Built and run on an Ubuntu 24.04 VirtualBox VM with ROS2 Jazzy
+(`ros-jazzy-ros-base`). `colcon build --packages-select beacon_tracker`
+succeeds and `ros2 run beacon_tracker beacon_tracker_node` starts
+cleanly, logging `beacon_tracker up: estimator=centroid, half_width=9,
+sigma=1.75 px, topic=/camera/image_raw` and waiting on the image topic.
+The development machine used for the rest of this repository still has
+no ROS2, C++ toolchain, CMake, Docker, or WSL, so this verification was
+done entirely on the VM.
 
-What has been checked here: `beacon_tracker_node.py`, `setup.py` and
-`package.xml` all parse without error, and the estimator functions the
-node calls (`centroid_estimate`, `gaussian_fit_estimate`,
-`matched_filter_estimate`) are the same functions covered by the 136
-tests in `tests/`. What has not been checked: that the node builds under
-`colcon`, that the topic wiring matches a real camera driver's message
-types, and that it behaves correctly against live data.
+Two real packaging bugs found and fixed only once an actual build was
+possible, neither visible from reading the code:
+
+- No `setup.cfg`. `ament_python` packages need one pointing
+  `install_scripts` at `$base/lib/beacon_tracker`; without it, setuptools
+  used its own default (`$base/bin`), so the built executable existed
+  but `ros2 run` could not find it. This is boilerplate
+  `ros2 pkg create --build-type ament_python` normally generates, and
+  was simply missing since this package was hand-written.
+- `package.xml` declared `python3-numpy` but not `python3-scipy`, even
+  though `sptrack/psf.py` needs `scipy.special.erf`. `ros2 run` uses
+  ROS2's system Python, not the project's own `.venv`, so the venv
+  having scipy installed did not help; the node failed at import time
+  with `ModuleNotFoundError: No module named 'scipy'` until
+  `python3-scipy` was installed system-wide and declared as a dependency.
+
+Building from a symlink into the shared VirtualBox folder
+(`/media/sf_...`) also failed with `Operation not permitted` on an
+internal ament_python development-mode symlink, the same `vboxsf`
+limitation that affected the Python `venv` earlier in this project.
+Fixed by copying the package into the ROS2 workspace instead of
+symlinking it.
+
+What has not been checked: the topic wiring against a real camera
+driver's message types, and behaviour against live (non-synthetic)
+data. No image publisher exists in this project to feed the node,
+so it has only been confirmed to start, resolve its dependencies, and
+subscribe correctly, not to produce a correct position estimate from a
+real frame.
 
 ## Prerequisites
 
 A ROS2 distribution with `rclpy`, `sensor_msgs`, `geometry_msgs`, and
-`std_msgs`. Developed against ROS2 Jazzy on Ubuntu 24.04, matching the
-VirtualBox environment used to validate the rest of this repository.
+`std_msgs`. Verified against ROS2 Jazzy on Ubuntu 24.04 in a VirtualBox
+VM. The ROS2 apt repository is not preconfigured on a stock Ubuntu
+24.04 image and must be added first:
 
 ```bash
+sudo apt install -y software-properties-common curl
+sudo add-apt-repository universe -y
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 sudo apt update
-sudo apt install ros-jazzy-desktop python3-colcon-common-extensions
+sudo apt install -y ros-jazzy-ros-base python3-colcon-common-extensions python3-scipy
 source /opt/ros/jazzy/setup.bash
 ```
+
+`ros-jazzy-ros-base` rather than `ros-jazzy-desktop`: this node has no
+GUI dependency, and base is a much smaller install. `python3-scipy` is
+required at the system level, not just in the project's own `.venv`,
+because `ros2 run` uses ROS2's system Python interpreter (see the
+scipy bug in Status above).
 
 `sptrack` itself must be importable from the node's Python interpreter:
 
@@ -52,13 +87,22 @@ export PYTHONPATH="/path/to/sub-pixel-tracker:$PYTHONPATH"
 
 ## Build
 
+If `/path/to/sub-pixel-tracker` is on a VirtualBox shared folder
+(`vboxsf`), copy the package into the workspace rather than symlinking
+it; `vboxsf` does not support the symlinks `ament_python`'s build step
+creates internally, and the failure is silent (`colcon build` reports
+success even though no executable gets installed):
+
 ```bash
 mkdir -p ~/ros2_ws/src
-ln -s /path/to/sub-pixel-tracker/ros2/beacon_tracker ~/ros2_ws/src/beacon_tracker
+cp -r /path/to/sub-pixel-tracker/ros2/beacon_tracker ~/ros2_ws/src/beacon_tracker
 cd ~/ros2_ws
 colcon build --packages-select beacon_tracker
 source install/setup.bash
 ```
+
+On a native (non-shared-folder) filesystem, a symlink instead of a copy
+works fine.
 
 ## Run
 

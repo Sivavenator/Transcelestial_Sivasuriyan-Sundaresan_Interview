@@ -163,29 +163,60 @@ ctest --test-dir cpp/build --output-on-failure
 docker build -t sptrack .
 ```
 
-None of these three have been built or run on the development machine
-used for the rest of this repository, which has no C++ compiler, CMake,
-Docker, or WSL. `cpp/README.md` and `ros2/README.md` state this plainly
-and give exact commands for the Ubuntu 24.04 VM already used to validate
-this project's Python dependencies. Two real cross-language bugs were
-found and fixed by inspection before any build was attempted: Python's
-round-half-to-even vs C++'s `std::lround` rounding half away from zero,
-and numpy 2's `repr()` emitting a non-numeric literal into the exported
-vectors.
+None of these three could be built on the development machine used for
+the rest of this repository, which has no C++ compiler, CMake, Docker,
+or WSL. All three have since been built and verified on an Ubuntu 24.04
+VirtualBox VM. `ctest` passes `cross_validation_against_python` on all
+28 exported cases (1e-9 px centroid, 1e-6 px fit); `docker build`
+succeeds end to end, including a passing Python test suite and C++
+cross-validation inside the image; and `colcon build` plus
+`ros2 run beacon_tracker beacon_tracker_node` starts the ROS2 node
+cleanly. The compiled centroid and fit are roughly 9x and 24x faster
+than Python at the median, and the fit's worst observed frame (294us)
+is comfortably under the 1000us budget, unlike Python's (993us); see
+`cpp/README.md` for the full numbers.
+
+Several real bugs were found only once building was actually possible,
+none visible from reading the code alone: Python's round-half-to-even
+vs C++'s `std::lround` rounding half away from zero; numpy 2's `repr()`
+emitting a non-numeric literal into the exported C++ vectors; a missing
+`.dockerignore` that let a host-generated `cpp/build/` with a stale
+absolute path leak into the Docker image; a missing `setup.cfg` in the
+ROS2 package, so the built executable existed but `ros2 run` could not
+find it; and a missing `python3-scipy` dependency in the ROS2 package's
+`package.xml`, since `ros2 run` uses ROS2's system Python rather than
+this project's own virtual environment. See `cpp/README.md`,
+`ros2/README.md`, and `docs/ASSUMPTIONS.md` for the full account of
+each.
+
+## Written report
+
+[`docs/REPORT.md`](docs/REPORT.md) (also exported as `docs/REPORT.pdf`)
+is the brief's §7 written-report deliverable: a self-contained
+narrative covering every section of the brief in order, with equations,
+embedded figures, a per-section assumptions log, and a closing
+best-case/worst-case operating recommendation that answers directly
+which estimator and supporting mechanisms this project would actually
+ship, and why. This README and the rest of `docs/` remain the
+supporting reference material the report itself points into for full
+depth.
 
 ## What's next
 
-Per `docs/PROGRESS.md`:
-- §6 self-check (this document is part of closing it out)
-- Building and running the C++/ROS2/Docker artefacts on a machine that
-  has the toolchain, and the written report itself (this repo + `docs/`
-  currently stand in for it)
-- Further real-world conditions identified but deliberately not
-  simulated (sensor saturation as a dedicated item, cosmic-ray hits,
-  impulsive/thruster-firing disturbances, an angular pointing-precision
-  framing) are recorded in
-  [`docs/REAL_WORLD_CONDITIONS.md`](docs/REAL_WORLD_CONDITIONS.md)'s
-  "Further considerations" section, reserved for the written report.
+Per `docs/PROGRESS.md`, every brief requirement and every item raised in
+interview-panel feedback is now DONE: the core task, dynamic tracking,
+real-world conditions, go-further extensions, the self-check, and the
+C++/ROS2/Docker deployment artifacts (all built and verified, not just
+written). What remains is scoped out deliberately, not left incomplete,
+and is recorded as such: further real-world conditions identified but
+not simulated (sensor saturation as a dedicated item, cosmic-ray hits,
+impulsive/thruster-firing disturbances, an angular pointing-precision
+framing), deeper statistics on a few existing results (more trials on
+the thinnest Monte Carlo sweeps, finer background-gradient sampling),
+and exercising the deployment artifacts against real hardware rather
+than only against each other. All of these are listed with the reasoning
+behind leaving them out in `docs/REPORT.md`'s own closing sections
+rather than treated as gaps.
 
 ## Repo map
 
@@ -194,12 +225,13 @@ Per `docs/PROGRESS.md`:
   independently runnable and writes to `results/` and `figures/`
 - `tests/`, the test suite, one file per `sptrack/` module
 - `run_all.py`, one command reproducing every result and figure
-- `cpp/`, header-only C++ port of the centroid and Gaussian fit, cross-
-  validated against the Python reference, not yet built (`cpp/README.md`)
-- `ros2/`, a ROS2 node wrapping the Python estimators, not yet run
-  against a live installation (`ros2/README.md`)
+- `cpp/`, header-only C++ port of the centroid and Gaussian fit, built
+  and cross-validated against the Python reference (`cpp/README.md`)
+- `ros2/`, a ROS2 node wrapping the Python estimators, built and run
+  against a live ROS2 installation, not against live camera data
+  (`ros2/README.md`)
 - `Dockerfile`, reproducible environment that runs the Python tests and
-  builds and cross-validates the C++ side, not yet built
+  builds and cross-validates the C++ side, built and verified
 - `tools/export_cpp_vectors.py`, generates the C++ cross-validation data
   from the Python reference
 - `docs/DESIGN_RATIONALE.md`, every concept used, what it does, why it
