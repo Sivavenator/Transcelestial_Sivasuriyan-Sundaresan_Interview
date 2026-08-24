@@ -1,0 +1,49 @@
+{
+  "exposure_us": 1000.0,
+  "readout_transfer_bound_us": 200.0,
+  "frame_period_us": 1000.0,
+  "methods": {
+    "centroid": {
+      "compute_median_us": 33.09999010525644,
+      "compute_p99_us": 39.70098216086626,
+      "compute_max_us": 72.49999907799065,
+      "serial_latency_median_us": 1233.0999901052564,
+      "serial_latency_p99_us": 1239.7009821608663,
+      "serial_latency_max_us": 1272.4999990779907,
+      "pipelined_readout_plus_compute_median_us": 233.09999010525644,
+      "pipelined_readout_plus_compute_p99_us": 239.70098216086626,
+      "pipelined_readout_plus_compute_max_us": 272.49999907799065,
+      "fits_throughput_median": true,
+      "fits_throughput_p99": true,
+      "fits_throughput_max": true
+    },
+    "fit": {
+      "compute_median_us": 423.20000648032874,
+      "compute_p99_us": 883.7700058938934,
+      "compute_max_us": 1010.2000087499619,
+      "serial_latency_median_us": 1623.2000064803287,
+      "serial_latency_p99_us": 2083.7700058938935,
+      "serial_latency_max_us": 2210.200008749962,
+      "pipelined_readout_plus_compute_median_us": 623.2000064803287,
+      "pipelined_readout_plus_compute_p99_us": 1083.7700058938935,
+      "pipelined_readout_plus_compute_max_us": 1210.2000087499619,
+      "fits_throughput_median": true,
+      "fits_throughput_p99": false,
+      "fits_throughput_max": false
+    },
+    "matched": {
+      "compute_median_us": 67.60001997463405,
+      "compute_p99_us": 83.62999622477216,
+      "compute_max_us": 134.8000077996403,
+      "serial_latency_median_us": 1267.600019974634,
+      "serial_latency_p99_us": 1283.6299962247722,
+      "serial_latency_max_us": 1334.8000077996403,
+      "pipelined_readout_plus_compute_median_us": 267.60001997463405,
+      "pipelined_readout_plus_compute_p99_us": 283.6299962247722,
+      "pipelined_readout_plus_compute_max_us": 334.8000077996403,
+      "fits_throughput_median": true,
+      "fits_throughput_p99": true,
+      "fits_throughput_max": true
+    }
+  }
+}

@@ -1645,5 +1645,50 @@ complete.
 
 ---
 
+## Go Further: precision limit and latency budget (§5)
+
+**Precision limit from first principles: already satisfied, not a new
+build.** The brief's item ("derive... not just measure it") is fully
+covered by existing work: `sptrack/crlb.py`'s docstring builds the CRLB
+from Poisson statistics through Fisher information from scratch, before
+any measurement, and derives the classical closed form
+(`sigma~=sigma_PSF/sqrt(N)`) as a cross-check against the pixel-integrated
+version. `exp01_snr_characterization.py` then measures against that
+DERIVED bound. Re-deriving the same thing again in a new module would
+have been redundant work with no new content -- marked DONE by pointing
+to what already exists, rather than built again.
+
+**Latency budget: the readout/transfer number, sourced and deliberately
+left rough.** Per the standing rule, a real comparable camera was
+researched (C-BLUE One, built specifically for laser guide-star
+wavefront sensing -- a closely related real application): 256x256 ROI at
+1862 fps (537us), 128x128 at 4400fps (227us). Extrapolating a precise
+per-row time from only two rounded datasheet points was explicitly
+rejected -- the user's own direction was to state a single round,
+conservative bound (200us) and document plainly that it is a rough
+number, not a precise derivation. This is a deliberate choice to avoid
+implying false precision, not a shortcut taken quietly.
+
+**A real contradiction caught before it shipped.** The first draft of
+this experiment's explanation claimed "exposure+readout/transfer
+(1200us) fits with margin" against the 1000us frame period -- 1200 is
+not less than 1000; the claim was false on its face. The underlying
+error was conflating two different questions: whether exposure+readout
+fits inside 1ms (it does not, and cannot, since exposure alone -- 1ms,
+by construction, this project's exposure_s=1e-3 IS the whole frame
+period -- already consumes the entire budget), versus whether
+readout+compute fits inside the NEXT frame's exposure window running in
+parallel (the actually-correct pipelined throughput question). Caught
+by checking the arithmetic (1200 > 1000) against the claim rather than
+trusting a plausible-sounding sentence, and fixed by redefining the
+throughput criterion properly: readout+transfer+compute must fit inside
+1000us, not exposure+readout. Under the corrected criterion, all three
+estimators fit at the median; only the Gaussian fit's own measured tail
+(p99=1084us, max=1210us, both already measured in exp02) pushes past the
+1000us pipelined window -- a real, quantified version of the tradeoff
+already identified qualitatively back in §2d.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
