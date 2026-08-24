@@ -1521,5 +1521,53 @@ consistently; corrected hugs zero). Recomputing with
 
 ---
 
+## Go Further: motion blur (§5)
+
+Full reasoning lives in `sptrack/motion_blur.py`'s module docstring; this
+section records the research dead-end that led to the sweep-based
+framing, and a real wording bug caught in the explanation panel.
+
+**The velocity-grounding research, and why it was abandoned honestly
+rather than pushed through.** Per the standing "ask before guessing"
+rule, an attempt was made to ground a specific blur magnitude in a real
+spec, the same way lens distortion was. A real, relevant number WAS
+found (Bramall et al., a genuine closed-loop fine-steering mirror built
+for FSO terminals: 1.5 mrad/s mean slew rate) — but converting it to a
+pixel displacement needs a plate scale (angular size per pixel) that
+does not exist anywhere in this project. Further searches for a plate
+scale turned up real but not-directly-usable numbers (wide-FOV
+ACQUISITION camera specs, which are the wrong subsystem; a narrow-FOV
+tracking CCD's ACHIEVED accuracy, which isn't the same thing as its
+plate scale without a further assumption about what fraction of a pixel
+that accuracy represents). Rather than stack a third or fourth assumption
+on top of an already-shaky chain, this was surfaced to the user directly,
+who chose to drop the angular framing entirely: blur is swept as a
+fraction of sigma (0-3x), with the real slew-rate/accuracy figures kept
+only as motivating context in the docstring, explicitly not claimed as a
+precision derivation.
+
+**A wording bug caught before it shipped.** The first draft of the
+figure's explanation panel claimed "all three methods stay close to zero
+bias" — true for the fit and matched filter (within ~1 millipixel
+throughout), but not for the centroid, which carries a real, roughly
+constant -3 to -8 millipixel offset present ALREADY AT ZERO BLUR. Caught
+by looking at the actual numbers rather than trusting the drafted
+sentence: this offset doesn't grow with blur, so it isn't something
+motion blur introduces — it's the centroid's own already-characterised
+(§2c) SNR-dependent bias showing up again. The panel was rewritten to
+say precisely that (bias doesn't GROW with blur, rather than bias IS
+zero), which is both more accurate and a more interesting finding: the
+right claim here is that blur adds no NEW bias mechanism, not that bias
+is absent.
+
+**A separate, unrelated bug in the same draft: a missing f-string
+prefix.** One line of the explanation text used `{matched_bias_end:+.1f}`
+inside a plain (non-f) string literal, which would have printed the
+literal placeholder text instead of the number. Caught by re-reading the
+generated figure rather than assuming the code did what it looked like
+it should.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
