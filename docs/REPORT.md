@@ -1483,6 +1483,45 @@ in Section 2b rather than repeated here.
   those skills beyond the brief's own requirements, are built and
   verified, not merely written; five real bugs were found only once
   building was actually possible.
+- AI tooling was used throughout development, permitted directly by the
+  brief's own ground rules; how it was used, and how that answers a
+  question asked separately in this candidacy's stage 1 interview, is
+  covered below.
+
+#### Use of AI tooling
+
+The brief's own ground rules state this directly: AI tools are allowed,
+provided every result can be understood and defended live. This project
+used an AI coding assistant (Claude) throughout development, and this
+section states how, since stage 1 of this interview process asked
+directly how AI would be implemented into a system, and this project is
+itself a concrete answer to that question rather than a separate one.
+
+The role AI played here was productivity, not judgment. It wrote first
+drafts of estimator, simulator, and experiment code against
+requirements specified section by section, drafted documentation
+including this report, and executed the verification commands (test
+suites, the VM builds in Section 6, `run_all.py`) under direction. It
+did not decide what to build, what to reject, or what counts as
+correct. Those decisions, and the responsibility for defending them,
+stayed with the engineer throughout: which real-world conditions to
+prioritize, which deployment artifacts mattered enough to build, when a
+result looked wrong and needed a second, independent check rather than
+being accepted, and when a claim (a sourced number, a "the build
+passed") needed to be verified against real output rather than taken on
+trust. `docs/ASSUMPTIONS.md`'s bug log is the concrete evidence for how
+that worked in practice: bugs were caught by rerunning things and
+looking at the actual numbers, not by assuming AI-generated code or
+AI-reported results were correct because they were plausible-sounding.
+
+The practical case for this way of using AI, for a role like this one,
+is throughput without a loss of understanding: a working, characterized,
+documented, and now-verified sub-pixel tracker with a written report
+covering every stage of the brief, built and defended by one engineer.
+The discipline that makes that possible is the same one applied to
+every other number in this report, nothing is trusted until it has been
+checked, and where something could not be checked, that is stated
+rather than hidden.
 
 #### Self-check against the brief's own criteria
 
