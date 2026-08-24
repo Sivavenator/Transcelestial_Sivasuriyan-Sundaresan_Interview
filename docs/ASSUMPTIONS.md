@@ -1569,5 +1569,56 @@ it should.
 
 ---
 
+## Go Further: very low photon count (§5)
+
+Full reasoning lives in `experiments/exp05d_low_photon_count.py`'s module
+docstring; this section summarises, including a plot-generation crash
+caught while writing up the results and the real mechanism found once it
+was investigated instead of just fixed.
+
+**Why this needed no new physical constant, unlike lens distortion or
+motion blur.** "Very low photon count" is the far end of the SNR axis
+this project already fully owns (`snr.py`, `exp01_snr_characterization.py`)
+-- the sweep's lower bound (down to ~0.4 photons peak signal) was reached
+by asking the existing `snr_to_flux` for lower SNR values, not by
+inventing a new assumption. Deliberately NOT modelled: a separately
+lowered `background_e`/`sigma_read_e` to represent a "cleaner," more
+purely photon-counting-limited deep-space scenario -- that would itself
+be a fresh, unconfirmed physical assumption about a different deployment,
+exactly what the standing rule exists to prevent. This experiment
+answers a narrower question: how THIS project's already-established
+noise budget and estimators behave as signal drops toward zero.
+
+**A crash caught the moment the real complexity of the result was
+underestimated.** The first draft of the explanation panel assumed all
+three methods would have a well-defined "50%-success-rate crossing" and
+crashed trying to format `None` for the centroid, which never drops
+below 100% success anywhere in the tested range. Investigating why
+turned into the far more interesting finding: the centroid's success
+criterion (positive background-subtracted flux) is a formal check, not a
+quality check, so it always "succeeds" while its actual answers become
+noise-driven garbage below a few photons -- its std plateaus at ~518
+millipixels (the window's own noise floor) regardless of how much signal
+remains. This is the same mechanism already found in §4's fog experiment
+(dropout rate alone understates real failure when a method's `ok` flag
+doesn't check answer quality) -- worth reading as a second, independent
+confirmation of that finding, not a coincidence.
+
+**A second real finding, found by reading the matched filter's own
+source rather than assuming its accuracy ordering would hold.** The
+matched filter is the SECOND-most accurate method at moderate/high SNR
+(§2c: fit > matched > centroid), but here it fails (50%-success) at a
+photon count more than 10x HIGHER than the fit (~5.6 vs. ~0.4 photons) --
+the ordering flips. Reading `matched_filter.py` directly (rather than
+guessing) showed why: its failure test is purely GEOMETRIC (does the
+correlation peak land more than 1px from the correlation window's own
+edge), unrelated to the fit's CONVERGENCE-based failure test. At low
+SNR the correlation surface is noise-dominated, and a noise-dominated
+peak lands near that window's edge far more often than a real, centred
+signal peak would -- a mechanistic, checked explanation for the flipped
+ordering, not just an observed correlation.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
