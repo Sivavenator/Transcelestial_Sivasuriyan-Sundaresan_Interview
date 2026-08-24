@@ -1462,5 +1462,64 @@ mental model of a feedback loop might suggest.
 
 ---
 
+## Go Further: calibration (§5)
+
+Full reasoning lives in `sptrack/calibration.py`'s module docstring; this
+section records the confirmed-with-the-user distortion source and two
+real bugs caught while verifying the demonstration experiment.
+
+**Lens-distortion magnitude was sourced and confirmed, not guessed.**
+Per the standing rule (never pick an unverified numeric constant
+independently — see [[feedback_ask_before_guessing_numbers]]), the
+distortion magnitude was found via a live web search for published
+machine-vision lens datasheets (Commonlands CIL052: -0.1%; MYUTRON FV
+series: <0.1%; general "standard" machine-vision lenses: closer to 1%),
+presented to the user with the specific tradeoff (precision lens vs.
+standard lens), and the user confirmed the precision-lens tier (~0.1%)
+as the better match for this project's narrow-FOV tracking optic. N_bias
+(100 frames) and the flat-field brightness/frame-count (13 frames at
+~20,000 e-/frame) are NOT in this category — both are derived
+arithmetically from already-established project numbers (sigma_read_e,
+prnu_sigma), not fresh physical assumptions, so they didn't need the
+same confirmation step.
+
+**Bug 1: the first bias/hot-pixel demonstration showed no real effect.**
+The first version used a bright spot (flux=20000) with the hot pixel 3px
+away — raw mean bias +2.9 millipixels, corrected -2.1 millipixels, both
+well within one standard error of the ~200-trial noise floor (std~17
+millipixels, SE~1.2). Checking the actual numbers (not just the sign of
+the mean) caught this before it shipped. Fixed by choosing a dimmer spot
+(flux=3000, so the hot pixel's fixed ~50-electron excess is proportionally
+more significant against the spot's own signal) and moving the hot pixel
+closer (2px) — found by directly testing a few candidate configurations
+against their standard error, not by guessing a value that "seemed like
+it should work." Final result: raw mean +26.1 millipixels vs. SE ~3.4
+(clearly real), corrected mean -8.7 millipixels.
+
+**Bug 2: the first distortion sweep produced NaNs from r_norm=0.8
+onward.** The sweep moved the test position along a single axis (x only)
+while normalising radius by the frame's HALF-DIAGONAL (`r_max =
+hypot(cx, cy)`) -- for a square canvas, a pure-axis sweep reaches the
+canvas edge at r_norm = 1/sqrt(2) ~= 0.71, well before the intended
+r_norm=1.0, so later sweep points tried to place the spot outside the
+frame entirely. Fixed by sweeping along the DIAGONAL instead (both x and
+y advancing together), which is geometrically consistent with how
+`r_max` is actually defined, and by measuring the full radial error
+magnitude (`hypot(dx, dy)`) rather than only the x-component, since the
+sweep no longer moves along a single axis.
+
+**Bug 3 (a metric, not a data bug): the flat-field improvement was first
+reported using the wrong statistic.** `np.std()` (variation of the bias
+curve around ITS OWN mean, across offsets) was used where root-mean-
+square DISTANCE FROM ZERO was the actually-relevant question ("how far
+is the bias from the truth," not "how much does the bias vary from
+itself"). This produced a misleadingly weak "1.1x improvement" claim that
+visibly contradicted the plot itself (raw sits at 15-30 millipixels
+consistently; corrected hugs zero). Recomputing with
+`sqrt(mean(bias**2))` gave the number the plot actually supports: 20.3 ->
+4.0 millipixels, a 5.1x reduction.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*
