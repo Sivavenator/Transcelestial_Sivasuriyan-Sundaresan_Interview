@@ -1,7 +1,7 @@
 # Progress Tracker
 
 Maps every requirement in `CV_Eng_Assessment_Requirements.md` to its build
-status and proof of completion. Updated as we go, nothing is marked done
+status and proof of completion. Updated as we go. Nothing is marked done
 without a specific, checkable thing that proves it (a test, a plot, a
 command's output), not just "looks right."
 

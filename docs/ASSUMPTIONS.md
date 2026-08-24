@@ -640,7 +640,7 @@ drawn samples for each.
   paired trials, the efficiency argument in `gaussian_fit.py`'s docstring,
   actually measured rather than only asserted. A full bias/std-vs-SNR
   sweep, compared against the Cramér–Rao bound, is Characterization's job
-  (§2c), this is a first, informal look at the same question.
+(§2c). This is a first, informal look at the same question.
 
 ---
 
@@ -678,8 +678,8 @@ physics, not a bug.
 - What changed as a result: the test's tolerance was corrected to 2%
   (comfortably above the verified ~1.35% gap) with the sigma-sweep
   evidence recorded in the test's own comment, and the same finding was
-  written into `crlb.py`'s docstring directly, this is a property of the
-  bound worth knowing about when using it, not just a note about how one
+  written into `crlb.py`'s docstring directly. This is a property of the
+bound worth knowing about when using it, not just a note about how one
   test's number was chosen.
 
 The Gaussian fit's efficiency (CRLB / empirical std) is checked to land
@@ -943,7 +943,7 @@ at the lowest frequencies, 1/f^2), jitter is modelled as white noise (flat
 spectrum, justified the same way read noise's Gaussianity was, many
 independent short-correlation-time sources summing via the CLT), and the
 disturbance is a single sinusoid (one spectral spike). That separability
-is not decorative, it is the entire mechanism that will let a later
+is not decorative. It is the entire mechanism that lets a later
 disturbance-detection step distinguish "the injected tone" from "the rest
 of the motion" at all, and it is verified numerically
 (`tests/test_trajectory.py`), not just asserted.
@@ -1229,7 +1229,7 @@ Gauss-Newton solve) rather than to "low SNR" in general, consistent with
 what the §3 hard-scenario sweep had already shown (0 failed fits even at
 SNR=5 with no scintillation at all). This matters beyond scintillation:
 anywhere this project reports an `ok`/failure rate, it should be read as
-"the fit degenerated outright," not "the fit was imprecise", those are
+"the fit degenerated outright," not "the fit was imprecise". Those are
 different things, and conflating them would overstate how often this
 estimator visibly signals trouble.
 
@@ -1406,8 +1406,8 @@ physically: multiplying flux before the Poisson draw genuinely changes
 how many real photons are simulated as arriving (correct for exposure
 time, aperture, or attenuation changes) and genuinely improves SNR.
 Multiplying an ALREADY-REALIZED noisy signal after the fact (pure
-post-hoc analog/digital gain) would not improve SNR at all, it would
-rescale signal and its own noise together, for zero net benefit. The
+post-hoc analog/digital gain) would not improve SNR at all. It rescales
+signal and its own noise together, for zero net benefit. The
 docstring is deliberately precise about which mechanisms this proxies
 for, to avoid implying a physically unsound "gain fixes shot noise"
 claim.
@@ -1417,7 +1417,8 @@ rather than trusting it: convergence is asymmetric. The first version
 of the sweep experiment used a fixed 8-frame settling budget per
 brightness level before measuring precision. Checking the controller's
 actual gain trajectory (not just trusting the sweep's summary numbers)
-showed several of the brightest levels had NOT converged after 8 frames, worse, they had all decayed by the exact same factor (0.8^8 ≈ 0.168),
+showed several of the brightest levels had not converged after 8 frames. Worse,
+they had all decayed by the exact same factor (0.8^8 ≈ 0.168),
 because a saturated reading stays pinned at full-scale regardless of how
 much the gain has already been reduced, so each step computes the SAME
 correction ratio until the image finally unclips. This is a genuine
@@ -1519,8 +1520,7 @@ ACQUISITION camera specs, which are the wrong subsystem; a narrow-FOV
 tracking CCD's ACHIEVED accuracy, which isn't the same thing as its
 plate scale without a further assumption about what fraction of a pixel
 that accuracy represents). Rather than stack a third or fourth assumption
-on top of an already-shaky chain, this was surfaced to the user directly,
-who chose to drop the angular framing entirely: blur is swept as a
+on an already weak chain, the angular framing was dropped: blur is swept as a
 fraction of sigma (0-3x), with the real slew-rate/accuracy figures kept
 only as motivating context in the docstring, explicitly not claimed as a
 precision derivation.

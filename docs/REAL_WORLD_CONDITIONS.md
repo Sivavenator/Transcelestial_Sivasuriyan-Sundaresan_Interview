@@ -90,7 +90,7 @@ APPARENT position on the sensor to wander, a real, physical position
 fluctuation, distinct from (and in addition to) the mechanical shake
 already modelled as `jitter_std_px` in `sptrack/trajectory.py` (§3).
 Mechanical jitter comes from the platform; beam wander comes from the air
-between the platforms. Both look identical in a single frame, this is
+between the platforms. Both look identical in a single frame. This is
 worth being explicit about, since a live reviewer could reasonably ask
 "why do you have jitter AND turbulence, aren't they double-counted?"
 They are not double-counted in this project. §3's
@@ -150,7 +150,7 @@ sources sharing the sensor's field of view or falling within a coarse
 acquisition search: streetlights, vehicle headlights, glinting
 reflections, or (for a satellite-adjacent link) other satellites,
 aircraft, or planets. Unlike every noise source built into `sensor.py`,
-this is not a noise process at all, it is real, structured, spatially
+this is not a noise process at all. It is real, structured, spatially
 localised SIGNAL that happens not to be the laser spot.
 
 What it does to the estimate. This project's actual acquisition
@@ -235,7 +235,7 @@ a proposal.
 
 Simulated result / mitigation implemented (`sptrack/estimators/base.py::planar_background`,
 `experiments/exp04e_glare.py`). Checked directly before assuming
-anything: `border_median_background`'s scalar is NOT a bad estimate, it
+anything: `border_median_background`'s scalar is not a bad estimate. It
 reads the true background value at the window's centre to ~0.002
 electrons even under a strong gradient. The real failure is structural:
 subtracting one CONSTANT from a window whose true background genuinely
@@ -270,7 +270,7 @@ characterised so far (the sweep in `exp01_snr_characterization.py` went
 down to SNR=3; sustained heavy fog could plausibly push SNR below that
 for extended periods, not just a single hard frame). Below some floor,
 every estimator built here loses lock outright and stays lost until
-conditions improve, this is a genuine OPERATIONAL limit of the system,
+conditions improve. This is a genuine operational limit of the system,
 not a bug to fix, and worth stating as such rather than implying the
 system degrades gracefully forever.
 
