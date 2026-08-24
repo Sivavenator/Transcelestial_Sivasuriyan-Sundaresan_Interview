@@ -43,7 +43,7 @@ hints throughout). Requires `numpy`, `scipy`, `matplotlib`, `pytest`.
 
 ## How to reproduce
 
-Run the test suite (136 tests, covers every `sptrack/` module):
+Run the test suite (139 tests, covers every `sptrack/` module):
 
 ```bash
 python -m pytest -q
@@ -90,7 +90,7 @@ python run_all.py --list       # what would run
 
 ## What's tested
 
-136 tests across `tests/`, one file per `sptrack/` module. Every noise
+139 tests across `tests/`, one file per `sptrack/` module. Every noise
 source, every estimator, every calibration/robustness technique has
 direct numerical tests, not just "does it run," but checks like: does a
 derived formula match a known closed form, does a claimed bug-fix
@@ -191,7 +191,8 @@ each.
 
 ## Written report
 
-[`docs/REPORT.md`](docs/REPORT.md) (also exported as `docs/REPORT.pdf`)
+[`docs/REPORT.md`](docs/REPORT.md) (also exported as
+[`docs/Report_Transceletial_Sivasuriyan.pdf`](docs/Report_Transceletial_Sivasuriyan.pdf))
 is the brief's §7 written-report deliverable: a self-contained
 narrative covering every section of the brief in order, with equations,
 embedded figures, a per-section assumptions log, and a closing

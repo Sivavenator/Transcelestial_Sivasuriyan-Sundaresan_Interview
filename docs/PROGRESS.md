@@ -123,5 +123,5 @@ asked for. See `docs/DESIGN_RATIONALE.md`.
 | Requirement | Status | Verified by |
 |---|---|---|
 | Runnable repo, one command reproduces figures + results | DONE | `run_all.py`, see §5/deployment row above for what it does and does not cover |
-| Written report | DONE | `docs/REPORT.md`, also exported to `docs/REPORT.pdf` (pandoc + Typst, installed locally for this export since neither was previously on the development machine). Self-contained narrative through the brief's own sections 1-6, plus a closing best-case/worst-case operating recommendation (§8) and a further-work section (§7 of the report) |
+| Written report | DONE | `docs/REPORT.md`, also exported to `docs/Report_Transceletial_Sivasuriyan.pdf`. Self-contained narrative through the brief's own sections 1-6, an architecture diagram and 12 example rendered frames, a per-section assumptions log, a closing best-case/worst-case operating recommendation (§8), a further-work section (§7), and an AI-tooling disclosure (§9) |
 | Dynamic scenario + trajectory + disturbance analysis, reproducible | DONE | `experiments/exp03a` through `exp03d`, all reproducible via `run_all.py` or individually; see §3 above for the full results |
