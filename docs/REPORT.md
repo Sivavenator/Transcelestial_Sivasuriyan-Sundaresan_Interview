@@ -39,6 +39,103 @@ found during development is retained in the record rather than removed
 after the fact; the full account is in `docs/ASSUMPTIONS.md`, and this
 report draws on it only where needed to follow the argument.
 
+#### System architecture
+
+The diagram below is generated from this repository's actual module
+imports (`sptrack/`), not drawn independently of the code.
+
+```mermaid
+flowchart TD
+    subgraph SIM["Simulation"]
+        PSF["psf.py<br/>pixel-integrated Gaussian PSF"]
+        SCENE["scene.py<br/>background gradient"]
+        SENSOR["sensor.py<br/>photon/read noise, dark current,<br/>hot pixels, PRNU, quantization"]
+        SNR["snr.py<br/>SNR to flux conversion"]
+        TRAJ["trajectory.py<br/>drift + jitter + disturbance"]
+        SCINT["scintillation.py<br/>log-normal AR(1) fading"]
+        WANDER["beam_wander.py<br/>OU position noise"]
+        BLUR["motion_blur.py<br/>temporal supersampling"]
+        SIMULATE["simulate.py<br/>Simulator: renders one frame"]
+        SEQUENCE["sequence.py<br/>frame sequences + dead reckoning"]
+
+        PSF --> SIMULATE
+        SCENE --> SIMULATE
+        SENSOR --> SIMULATE
+        SNR --> SIMULATE
+        SIMULATE --> SEQUENCE
+        TRAJ --> SEQUENCE
+        SCINT -.-> SEQUENCE
+        WANDER -.-> SEQUENCE
+        BLUR -.-> SIMULATE
+    end
+
+    subgraph EST["Estimation"]
+        BASE["estimators/base.py<br/>window extraction,<br/>scalar/planar background"]
+        CENTROID["estimators/centroid.py"]
+        FIT["estimators/gaussian_fit.py<br/>Gauss-Newton"]
+        MATCHED["estimators/matched_filter.py"]
+        ACQ["acquisition.py<br/>shape-matched acquisition"]
+
+        BASE --> CENTROID
+        BASE --> MATCHED
+        PSF --> FIT
+        BASE --> ACQ
+        PSF --> ACQ
+    end
+
+    subgraph THEORY["Theory"]
+        CRLB["crlb.py<br/>Fisher information / CRLB"]
+    end
+
+    subgraph TRACK["Tracking and Analysis"]
+        RECOVER["sequence.py::recover_trajectory<br/>frame-to-frame prior gating"]
+        DIST["disturbance.py<br/>Hann-windowed FFT detection"]
+        KALMAN["tracking.py<br/>Kalman / alpha-beta filters"]
+
+        FIT --> RECOVER
+        SEQUENCE --> RECOVER
+        RECOVER --> DIST
+        RECOVER -.-> KALMAN
+    end
+
+    subgraph CTRL["Calibration and Control"]
+        CAL["calibration.py<br/>bias/flat-field/distortion"]
+        AGC["agc.py<br/>auto-exposure control"]
+    end
+
+    subgraph HARNESS["experiments/ (19 scripts)"]
+        EXP["exp01 .. exp07<br/>Monte Carlo characterization"]
+    end
+
+    EST --> HARNESS
+    THEORY --> HARNESS
+    TRACK --> HARNESS
+    CTRL --> HARNESS
+    SIM --> HARNESS
+    EXP --> RESULTS[("results/ + figures/")]
+
+    subgraph DEPLOY["Deployment (verified on Ubuntu 24.04 VM)"]
+        CPP["cpp/<br/>header-only C++17 port<br/>(centroid + Gaussian fit)"]
+        ROS2["ros2/beacon_tracker<br/>wraps the Python estimators"]
+        DOCKER["Dockerfile<br/>builds + cross-validates both"]
+    end
+
+    EST -. "ported" .-> CPP
+    EST -. "wrapped" .-> ROS2
+    CPP -. "cross-validated against" .-> EST
+```
+
+Three things this diagram makes explicit that are easy to lose in prose:
+estimation (`estimators/`) and the theoretical bound (`crlb.py`) are
+built from the same underlying PSF model, which is why they cannot
+silently disagree (Section 2c); the tracking loop
+(`recover_trajectory`) sits between the estimator and the disturbance
+detector, so the detector never sees an estimator's raw per-frame
+output without dead reckoning already applied; and the C++ port wraps
+only the two estimators actually used in the real-time budget, not the
+matched filter or the temporal filters, which is a scope decision, not
+an oversight (`cpp/README.md`).
+
 #### Assumptions
 
 - The 1 kHz frame rate and the sub-pixel precision requirement are
