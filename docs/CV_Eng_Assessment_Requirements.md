@@ -1,4 +1,4 @@
-# CV Engineer Take-Home — Assessment Requirements
+# CV Engineer Take-Home, Assessment Requirements
 
 Source: `CV_Engineer_Take_Home (Siva).docx`. This document is our own bullet-point
 breakdown of the brief, read and confirmed section by section before any code
@@ -10,20 +10,20 @@ was written, so we always know exactly what we're building against.
 
 - Two terminals, each has: a camera + a gimbal-mounted laser
 - Both platforms vibrate randomly (shake)
-- Goal: each laser stays pointed at the *other* terminal
-- Camera's job: see the incoming laser spot, find its position to **sub-pixel precision**
-- Loop runs at **~1 kHz** (1000 times/sec = every 1 ms)
+- Goal: each laser stays pointed at the other terminal
+- Camera's job: see the incoming laser spot, find its position to sub-pixel precision
+- Loop runs at ~1 kHz (1000 times/sec = every 1 ms)
 - Camera output → feeds a controller → controller steers the gimbal
-- **Spot's brightness changes depending on environment** (camera settings + conditions)
+- Spot's brightness changes depending on environment (camera settings + conditions)
 - Sensor problems to expect: noise, exposure drift, gain drift, temperature drift, background drift
-- **Must get sub-pixel precision AND real-time 1kHz position, together**
-- **Key line: must defend every decision live** — that's the real grading criterion
+- Must get sub-pixel precision AND real-time 1kHz position, together
+- Key line: must defend every decision live, that's the real grading criterion
 
 ## 2. Core Task (baseline, required)
 
 ### 2a. Simulator
 
-- Build a fake image generator — synthetic camera frames of a laser spot
+- Build a fake image generator, synthetic camera frames of a laser spot
 - Spot shape: Gaussian blob, known sub-pixel position (ground truth)
 - Noise types required, ALL of them:
   - Photon noise (Poisson)
@@ -33,7 +33,7 @@ was written, so we always know exactly what we're building against.
   - Non-uniform background gradient
   - Pixel-gain non-uniformity (PRNU)
   - Bit-depth quantization
-- SNR control — dial to sweep signal-to-noise
+- SNR control, dial to sweep signal-to-noise
 - Spot size: ~7 px diameter at 1/e² point, can vary slightly
 
 ### 2b. Estimators
@@ -45,7 +45,7 @@ was written, so we always know exactly what we're building against.
 
 ### 2c. Characterization
 
-- Monte Carlo — many random noisy trials
+- Monte Carlo, many random noisy trials
 - Measure per method, per SNR: bias (systematic skew) + standard deviation (scatter)
 - Produce error-vs-SNR plots
 - State theoretical precision floor, show how close you get to it
@@ -76,31 +76,31 @@ was written, so we always know exactly what we're building against.
 - Real deployment = outdoors, uncontrolled
 - Identify conditions that would degrade the system
 - For each: how it shows up in image / what it does to the estimate / how to detect + handle it
-- **Analysis quality > implementation** for this section
-- Named example: scintillation — simulate its impact, make system robust to it
+- Analysis quality > implementation for this section
+- Named example: scintillation, simulate its impact, make system robust to it
 
 ## 5. Go Further (optional, bonus)
 
-- Nothing here required — shows judgment on where to spend effort
+- Nothing here required, shows judgment on where to spend effort
 - Auto-exposure/gain control: brightness changes with graceful saturation handling
 - Build actual robustness to conditions identified in §4
 - Calibration (bias/flat-field/lens-distortion) + measure its effect on precision
 - Motion blur robustness, or very low photon counts
 - Derive precision limit from first principles (not just measure it)
 - Latency budget: full photon → position-estimate path, where your algorithm sits in it
-- Anything else you think matters — surprising them is allowed
+- Anything else you think matters, surprising them is allowed
 
 ## 6. What a Strong Submission Shows
 
-- Quantified, not asserted — numbers with error bars
-- Compared — methods vs each other AND vs theoretical reference
+- Quantified, not asserted, numbers with error bars
+- Compared, methods vs each other AND vs theoretical reference
 - Clear reasoning about noise/bias/limits, not just working code
 - Documentation someone else could pick up: what/why/how-to-reproduce/what-tested/where-it-breaks/what's-next
 - Honest about assumptions and failure modes
 
 ## 7. Deliverables
 
-- Runnable repo — one command reproduces all figures + results
+- Runnable repo, one command reproduces all figures + results
 - A written report
 - Dynamic scenario + recovered trajectory + disturbance analysis, reproducible from repo
 
