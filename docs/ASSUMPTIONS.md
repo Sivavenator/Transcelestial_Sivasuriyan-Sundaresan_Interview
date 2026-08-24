@@ -1618,6 +1618,31 @@ peak lands near that window's edge far more often than a real, centred
 signal peak would -- a mechanistic, checked explanation for the flipped
 ordering, not just an observed correlation.
 
+**A real omission caught when the user asked to cross-check the centroid
+numbers.** The first version of this experiment's writeup discussed the
+centroid only in terms of its std ("plateaus at the window's own noise
+floor"). It never mentioned that `centroid_bias` -- computed and saved
+correctly in the results JSON the whole time -- shows a substantial,
+roughly constant offset (~-250 to -330 millipixels) present at EVERY
+photon count tested, including the brightest. This was verified
+independently before trusting it: a fresh script (different seed, more
+trials, printed raw sample positions) reproduced the same std (~0.50 px)
+and the same offset. The mechanism is real and checkable:
+`extract_window` rounds the x0=10.3 prior to the nearest integer pixel
+(10) before centring the window, so once real signal is negligible,
+symmetric window noise pulls the centroid's weighted average toward that
+ROUNDED geometric centre (10.0), not the true sub-pixel position (10.3)
+-- a ~0.3 px artifact. This is not a new bug or a new effect -- it is the
+same low-SNR centroid bias already documented in §2c's original
+characterisation ("-235 millipixels at SNR=3"), just never called out in
+this experiment's own writeup, which discussed std alone and left the
+reader to assume std was the whole story. Fixed by adding a bias panel to
+the figure (bias had been computed but never plotted) and rewriting the
+explanation to state the mechanism, connect it explicitly to the §2c
+precedent, and report combined RMS error rather than std alone. The
+underlying numbers were correct throughout; the writeup was not
+complete.
+
 ---
 
 *(This document will grow as each new part of the simulator — dynamic

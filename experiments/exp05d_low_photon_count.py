@@ -125,8 +125,8 @@ def _plot(results: dict) -> None:
     peak_photons = np.array(results["peak_photons"])
     crlb = np.array(results["crlb"])
 
-    fig = plt.figure(figsize=(13, 9.5))
-    gs = fig.add_gridspec(2, 2, height_ratios=[3, 2.4], hspace=0.45, wspace=0.28)
+    fig = plt.figure(figsize=(16, 9.5))
+    gs = fig.add_gridspec(2, 3, height_ratios=[3, 2.6], hspace=0.45, wspace=0.32)
 
     ax0 = fig.add_subplot(gs[0, 0])
     for m in METHODS:
@@ -149,6 +149,17 @@ def _plot(results: dict) -> None:
     ax1.legend(fontsize=9)
     ax1.grid(alpha=0.3, which="both")
 
+    ax1b = fig.add_subplot(gs[0, 2])
+    ax1b.axhline(0, color="gray", lw=0.8, linestyle="--")
+    for m in METHODS:
+        bias = np.array([v * 1000 if v is not None else np.nan for v in results[f"{m}_bias"]])
+        ax1b.semilogx(peak_photons, bias, MARKERS[m] + "-", color=COLORS[m], label=LABELS[m])
+    ax1b.set_xlabel("peak-pixel signal (photons above background)")
+    ax1b.set_ylabel("bias (millipixels)")
+    ax1b.set_title("Bias vs. photon count, successful trials only")
+    ax1b.legend(fontsize=9)
+    ax1b.grid(alpha=0.3, which="both")
+
     # find the photon count where each method's success rate crosses 50%,
     # if it ever does within the tested range -- centroid's never does.
     def crossing(m):
@@ -159,14 +170,21 @@ def _plot(results: dict) -> None:
     crossings = {m: crossing(m) for m in METHODS}
     fit_str = f"{crossings['fit']:.2f}" if crossings["fit"] is not None else "never (within range tested)"
     matched_str = f"{crossings['matched']:.2f}" if crossings["matched"] is not None else "never (within range tested)"
-    centroid_floor = np.nanmean([v for v in results["centroid_std"] if v is not None][-4:]) * 1000
+    centroid_std_vals = [v for v in results["centroid_std"] if v is not None]
+    centroid_bias_vals = [v for v in results["centroid_bias"] if v is not None]
+    centroid_floor = np.nanmean(centroid_std_vals[-4:]) * 1000
+    centroid_bias_low = np.nanmean(centroid_bias_vals[-4:]) * 1000
+    centroid_bias_high = centroid_bias_vals[0] * 1000
+    centroid_rms_low = float(np.hypot(centroid_bias_low, centroid_floor))
     explanation = (
         "What we see:\n"
         "  Left: the centroid's success rate never drops below 100% anywhere in this sweep, even at 0.4 photons --\n"
         "  but the right panel shows why that is NOT real robustness: its std plateaus around "
         f"{centroid_floor:.0f} millipixels\n"
-        "  regardless of photon count, the window's own noise floor -- it always returns SOME position, most of\n"
-        "  which are noise-driven, not signal-driven. The fit and matched filter instead fail outright (ok=False)\n"
+        "  regardless of photon count. It ALSO carries a substantial, roughly constant bias (not shown on this std\n"
+        f"  plot -- see below) of about {centroid_bias_high:+.0f} millipixels even at the brightest point tested and\n"
+        f"  {centroid_bias_low:+.0f} millipixels at the dimmest -- present throughout the sweep, not something that\n"
+        "  only appears at the very lowest counts. The fit and matched filter instead fail outright (ok=False)\n"
         "  once photon count drops far enough, and do so at very DIFFERENT photon counts from each other.\n"
         "\n"
         "What we can derive:\n"
@@ -178,15 +196,29 @@ def _plot(results: dict) -> None:
         "     failure is CONVERGENCE-based, an unrelated criterion. At low SNR the correlation surface is\n"
         "     noise-dominated, and a noise-dominated peak lands near that window's edge far more often than a\n"
         "     real, centred signal peak would.\n"
-        "  2. The centroid's apparent 'success' at every photon count tested is exactly the same failure mode\n"
+        f"  2. The centroid's bias is not noise -- it is a real, checked, roughly constant offset (~{centroid_bias_low:+.0f}\n"
+        "     millipixels at the low-photon end) toward the WINDOW's own rounded-to-nearest-pixel centre\n"
+        "     (extract_window rounds the x0=10.3 prior to pixel 10 before centring the window), not the true\n"
+        "     sub-pixel position -- once real signal is negligible, symmetric window noise pulls the weighted\n"
+        "     average toward that geometric centre by symmetry. This is the SAME mechanism already documented in\n"
+        "     §2c's original centroid characterisation (a large low-SNR bias shrinking as SNR rises), extended\n"
+        "     here to show it persists (does not shrink further) throughout the whole photon-starved regime.\n"
+        f"     Combining bias and std into one RMS error at the dimmest point tested gives ~{centroid_rms_low:.0f}\n"
+        "     millipixels total error, worse than std alone would suggest.\n"
+        "  3. The centroid's apparent 'success' at every photon count tested is exactly the same failure mode\n"
         "     already found in §4's fog experiment: dropout_rate alone understates real failure when a method's\n"
         "     'ok' flag doesn't check answer QUALITY, only that a formal criterion (here: positive background-\n"
         "     subtracted flux sum) was met. A real system reading only centroid's ok flag would see 100% uptime\n"
-        "     while receiving effectively random positions below a few photons.\n"
-        "  3. Failure, where it happens, is not a silently wrong answer for the fit or matched filter -- both\n"
+        "     while receiving positions that are both biased AND noisy below a few photons.\n"
+        "  4. Failure, where it happens, is not a silently wrong answer for the fit or matched filter -- both\n"
         "     return ok=False rather than a confidently wrong position, consistent with every other dropout\n"
         "     characterised in this project (§4's fog/scintillation). The centroid is the one method here where\n"
-        "     'ok=True' cannot be trusted at face value at these photon counts."
+        "     'ok=True' cannot be trusted at face value at these photon counts.\n"
+        "  5. The matched filter's bias swings wildly (roughly +-1000 millipixels) at the lowest photon counts,\n"
+        "     unlike the fit's much smoother curve. This is a SMALL-SAMPLE artifact, not a new systematic effect:\n"
+        "     at those points the matched filter's success rate is only 9-16%, so its reported bias is a mean over\n"
+        "     roughly 20-30 surviving trials out of 200 -- too few to pin down a mean precisely, not evidence of a\n"
+        "     real, large, swinging bias."
     )
     ax2 = fig.add_subplot(gs[1, :])
     ax2.axis("off")
