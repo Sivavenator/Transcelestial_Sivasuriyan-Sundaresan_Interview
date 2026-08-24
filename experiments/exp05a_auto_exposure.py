@@ -40,7 +40,14 @@ BACKGROUND_E = 30.0
 SIGMA_READ_E = 5.0
 X0, Y0 = 20.3, 19.7
 N_TRIALS = 30
-FIXED_GAIN_TUNED_FLUX = 3e5  # the flux the fixed setting is well-tuned for
+# The flux at which an UNGAINED (gain=1.0) render's peak DN lands at the
+# AGC's own target (80% of headroom above the black-level pedestal) --
+# computed by direct binary search against the real render pipeline, not
+# guessed. An earlier hard-coded guess (3e5) was off by more than 2x
+# (it actually put peak DN at 1567, far under the 3296 target) and was
+# caught by checking it against the pipeline directly rather than trusting
+# the round number looked plausible.
+FIXED_GAIN_TUNED_FLUX = 6.516e5
 
 
 def _trial_errors(sim: Simulator, flux: float, n_trials: int) -> tuple[np.ndarray, float]:
@@ -148,7 +155,7 @@ def _plot(results: dict) -> None:
     ax0 = fig.add_subplot(gs[0])
     ax0.loglog(fluxes, fixed_std * 1000, "o-", color="#c0392b", label="fixed exposure/gain")
     ax0.loglog(fluxes, agc_std * 1000, "s-", color="#27ae60", label="auto-exposure (AGC)")
-    ax0.axvline(results["fixed_gain_tuned_flux"], color="#c0392b", lw=1, linestyle=":", label="flux the fixed setting is tuned for")
+    ax0.axvline(results["fixed_gain_tuned_flux"], color="#c0392b", lw=1, linestyle=":", label="flux where gain=1 alone reaches AGC's target DN")
     ax0.set_xlabel("true scene flux (electrons)")
     ax0.set_ylabel("position std (millipixels)")
     ax0.set_title("Precision vs. scene brightness: fixed exposure vs. auto-exposure")
