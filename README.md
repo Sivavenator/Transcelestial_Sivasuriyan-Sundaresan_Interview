@@ -57,9 +57,14 @@ can derive" panel to `figures/`):
 python -m experiments.exp01_snr_characterization
 ```
 
-There is no single command that reproduces every figure yet, that's
-`docs/PROGRESS.md`'s §7 item, not yet built. Until then, each experiment
-below is run individually.
+Reproduce every figure and result in one command:
+
+```bash
+python run_all.py              # full run, all experiments at their documented trial counts
+python run_all.py --quick      # reduced statistics where an experiment supports it
+python run_all.py --only exp06b exp07  # a subset
+python run_all.py --list       # what would run
+```
 
 | Script | What it produces |
 |---|---|
@@ -137,12 +142,44 @@ an integration experiment producing an impossible result).
   derivations. See `docs/ASSUMPTIONS.md` for exactly which numbers are
   derived vs. sourced vs. deliberately left as round bounds.
 
+## Deployment: C++, ROS2, Docker
+
+Not required by the brief. Added to demonstrate the same estimators
+outside a Python process.
+
+```bash
+# C++: header-only port of the centroid and Gaussian fit, cross-validated
+# against the Python reference to 1e-9 px (centroid) and 1e-6 px (fit)
+python -m tools.export_cpp_vectors
+cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+cmake --build cpp/build
+ctest --test-dir cpp/build --output-on-failure
+
+# ROS2: wraps the Python estimators as a node
+# see ros2/README.md for the full build/run sequence
+
+# Docker: runs the Python test suite, then builds and cross-validates
+# the C++ side as part of the image build
+docker build -t sptrack .
+```
+
+None of these three have been built or run on the development machine
+used for the rest of this repository, which has no C++ compiler, CMake,
+Docker, or WSL. `cpp/README.md` and `ros2/README.md` state this plainly
+and give exact commands for the Ubuntu 24.04 VM already used to validate
+this project's Python dependencies. Two real cross-language bugs were
+found and fixed by inspection before any build was attempted: Python's
+round-half-to-even vs C++'s `std::lround` rounding half away from zero,
+and numpy 2's `repr()` emitting a non-numeric literal into the exported
+vectors.
+
 ## What's next
 
 Per `docs/PROGRESS.md`:
 - §6 self-check (this document is part of closing it out)
-- §7 deliverables: a one-command reproduction script, and the written
-  report itself (this repo + `docs/` currently stand in for it)
+- Building and running the C++/ROS2/Docker artefacts on a machine that
+  has the toolchain, and the written report itself (this repo + `docs/`
+  currently stand in for it)
 - Further real-world conditions identified but deliberately not
   simulated (sensor saturation as a dedicated item, cosmic-ray hits,
   impulsive/thruster-firing disturbances, an angular pointing-precision
@@ -156,6 +193,15 @@ Per `docs/PROGRESS.md`:
 - `experiments/`, one script per numbered experiment above; each is
   independently runnable and writes to `results/` and `figures/`
 - `tests/`, the test suite, one file per `sptrack/` module
+- `run_all.py`, one command reproducing every result and figure
+- `cpp/`, header-only C++ port of the centroid and Gaussian fit, cross-
+  validated against the Python reference, not yet built (`cpp/README.md`)
+- `ros2/`, a ROS2 node wrapping the Python estimators, not yet run
+  against a live installation (`ros2/README.md`)
+- `Dockerfile`, reproducible environment that runs the Python tests and
+  builds and cross-validates the C++ side, not yet built
+- `tools/export_cpp_vectors.py`, generates the C++ cross-validation data
+  from the Python reference
 - `docs/DESIGN_RATIONALE.md`, every concept used, what it does, why it
   was chosen over the alternatives, and what was deliberately not done
 - `docs/PROGRESS.md`, every brief requirement, its status, and what

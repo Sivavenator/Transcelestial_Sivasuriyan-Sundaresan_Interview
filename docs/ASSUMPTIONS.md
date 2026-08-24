@@ -1751,6 +1751,55 @@ seeded results reproduce exactly. The wall-clock timings in `exp02` and
 1508 microseconds between runs. Those numbers are machine-dependent and
 are to be quoted as ranges with that caveat, not as constants.
 
+## Deployment artefacts: C++, ROS2, Docker
+
+Ported from `spotlab` at the user's request, to demonstrate the same
+skills the job description names, not because the brief requires them.
+
+Why written but not built. The development machine used for this whole
+project has no C++ compiler, no CMake, no Docker, and no WSL. Claiming
+these artefacts work without running them would be exactly the kind of
+unverified assertion this project's standing practice exists to prevent,
+so `cpp/README.md`, `ros2/README.md`, and the relevant rows in
+`docs/PROGRESS.md` state plainly that they are unbuilt and give exact
+commands for the Ubuntu 24.04 VM already used to validate this project's
+Python dependencies.
+
+Two real cross-language bugs found by inspection rather than by testing,
+since testing was not possible here. Python's `round()` is round-half-
+to-even; C++'s `std::lround` rounds half away from zero. Confirmed
+directly in this project's own Python: `round(10.5) == 10` and
+`round(11.5) == 12`. At an exact half-pixel prior position the two would
+select different window origins and silently disagree by a pixel.
+`extract_window`'s C++ port uses `std::nearbyint`, which defaults to
+round-half-to-even, instead. Separately, numpy 2's `repr()` on a scalar
+emits `np.float64(1.23)` rather than `1.23`, which broke the first
+version of `tools/export_cpp_vectors.py`: the generated CSV was
+syntactically valid Python but not valid C++ input. Caught by inspecting
+the actual generated file rather than assuming the string conversion
+worked, and now guarded by
+`tests/test_export_cpp_vectors.py::test_generated_csv_contains_no_numpy_repr_leakage`.
+
+Why cross-validation rather than independent C++ unit tests.
+Independent tests on each side would confirm self-consistency, not
+agreement. The failure that matters is the two implementations
+disagreeing while each independently looks correct, a transcription
+error in a Jacobian term or a different convergence rule, and only a
+direct comparison on the same pixels catches that. The Python side is
+the one with 139 tests and every result in `results/` traceable to it,
+so it is the reference and the C++ side is required to reproduce it, not
+the other way round.
+
+Why `run_all.py`'s `--quick` only touches three experiments. Sixteen of
+the nineteen experiments have their own justified trial counts, several
+derived explicitly in their own docstrings, for example `exp01`'s
+`n_trials=300` from the standard error of a sample standard deviation.
+Adding a blanket quick-mode reduction to all of them would be changing
+already-justified numbers without a justification of its own, which is
+the exact pattern this project has tried to avoid elsewhere. `--quick`
+applies only where an experiment already defined what "quick" means for
+itself.
+
 ---
 
 *(This document will grow as each new part of the simulator, dynamic

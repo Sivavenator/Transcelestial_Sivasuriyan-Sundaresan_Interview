@@ -104,8 +104,8 @@ asked for. See `docs/DESIGN_RATIONALE.md`.
 | Kalman / alpha-beta temporal filtering | DONE | `sptrack/tracking.py`, `tests/test_tracking.py` (6 tests), `experiments/exp07_kalman_tracking.py`. Filtering does not help at the operating point: target moves 215 mpx/frame against 8.76 mpx measurement noise, a ratio of 24 to 1. Measured crossover: +29% at SNR=3 (ratio 0.9), +1% at SNR=8, 0% at SNR=20 and 50 |
 | Design rationale document | DONE | `docs/DESIGN_RATIONALE.md`, 15 sections covering what each concept does and why it was chosen from first principles, including why Gauss-Newton over a general-purpose optimiser and why Kalman filtering is off by default |
 | Writing style corrections | DONE | Em dashes, bold and italic markup removed from all five markdown docs (345 em dashes, 329 bold markers, 35 italics); self-congratulatory phrasing reworded |
-| C++ / ROS2 / Docker deployment artefacts | NOT STARTED | Present in `spotlab`, not yet ported |
-| One-command reproduction (`run_all.py`) | NOT STARTED | Present in `spotlab`, not yet ported. Also §7 below |
+| C++ / ROS2 / Docker deployment artefacts | IN PROGRESS | Written, not yet built or run: the development machine has no C++ compiler, CMake, Docker, or WSL. `cpp/include/sptrack/spot_estimators.hpp` ports the centroid and Gaussian fit with an analytic Jacobian and no dynamic allocation in the per-frame path, cross-validated against `tools/export_cpp_vectors.py`-generated vectors from the Python reference by `cpp/tests/test_against_python.cpp` (1e-9 px centroid tolerance, 1e-6 px fit tolerance). Two real cross-language bugs found and fixed by inspection before any build: Python's round-half-to-even vs `std::lround`'s round-half-away-from-zero, and numpy 2's `repr()` emitting `np.float64(...)` into what needs to be a plain numeric literal. `ros2/beacon_tracker` wraps the Python estimators as a node with position/valid/flux topics; `cpp/README.md` and `ros2/README.md` both state plainly that they are unverified and give exact build commands for the Ubuntu 24.04 VM. `Dockerfile` runs the Python test suite, regenerates the C++ vectors fresh, and builds and ctests the C++ side as part of `docker build`, so a successful image build is itself the cross-validation result, not built or run here for the same toolchain reason |
+| One-command reproduction (`run_all.py`) | DONE | Runs all 19 experiments in brief order, `--quick` where an experiment actually supports it (exp01, exp02, exp05d, chosen deliberately rather than retrofitted onto experiments whose trial counts were separately justified), `--only` and `--list` for partial runs. Full run timed once end to end, see the note directly below this table |
 
 ## 6. What a Strong Submission Shows (self-check before submitting)
 
@@ -121,6 +121,6 @@ asked for. See `docs/DESIGN_RATIONALE.md`.
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Runnable repo, one command reproduces figures + results | NOT STARTED | |
+| Runnable repo, one command reproduces figures + results | DONE | `run_all.py`, see §5/deployment row above for what it does and does not cover |
 | Written report | NOT STARTED | |
 | Dynamic scenario + trajectory + disturbance analysis, reproducible | NOT STARTED | |
