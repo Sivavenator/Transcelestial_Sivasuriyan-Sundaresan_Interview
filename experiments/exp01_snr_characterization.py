@@ -109,6 +109,7 @@ def run(quick: bool = False) -> dict:
     for m in METHODS:
         results[f"{m}_bias"] = []
         results[f"{m}_std"] = []
+        results[f"{m}_n"] = []
 
     for snr in snr_targets:
         flux = snr_to_flux(
@@ -148,6 +149,7 @@ def run(quick: bool = False) -> dict:
         for m in METHODS:
             results[f"{m}_bias"].append(float(np.mean(errs[m])))
             results[f"{m}_std"].append(float(np.std(errs[m])))
+            results[f"{m}_n"].append(len(errs[m]))
 
     RESULTS_DIR.mkdir(exist_ok=True)
     with open(RESULTS_DIR / "exp01_snr_characterization.json", "w") as fh:
@@ -163,28 +165,38 @@ def _plot(results: dict) -> None:
     crlb = np.array(results["crlb"])
     bias = {m: np.array(results[f"{m}_bias"]) * 1000 for m in METHODS}
     std = {m: np.array(results[f"{m}_std"]) for m in METHODS}
+    n = {m: np.array(results[f"{m}_n"]) for m in METHODS}
+    # SE of a sample MEAN: std/sqrt(n). SE of a sample STD (not the mean)
+    # scales as std/sqrt(2n) for roughly-normal errors -- the same formula
+    # already used to justify n_trials=300 in this module's own docstring,
+    # applied here as actual plotted error bars instead of only prose.
+    bias_se = {m: (std[m] * 1000) / np.sqrt(np.maximum(n[m], 1)) for m in METHODS}
+    std_se = {m: std[m] / np.sqrt(2 * np.maximum(n[m], 1)) for m in METHODS}
     eff = {m: crlb / std[m] for m in METHODS}
 
     fig = plt.figure(figsize=(13, 8.5))
     gs = fig.add_gridspec(2, 2, height_ratios=[3, 2], hspace=0.4, wspace=0.28)
 
     ax0 = fig.add_subplot(gs[0, 0])
+    ax0.set_xscale("log")
     for m in METHODS:
-        ax0.semilogx(snr, bias[m], MARKERS[m] + "-", color=COLORS[m], label=LABELS[m])
+        ax0.errorbar(snr, bias[m], yerr=bias_se[m], fmt=MARKERS[m] + "-", color=COLORS[m], label=LABELS[m], capsize=3, elinewidth=1)
     ax0.axhline(0, color="gray", lw=0.8, linestyle="--")
     ax0.set_xlabel("SNR")
     ax0.set_ylabel("bias (millipixels)")
-    ax0.set_title("Bias vs SNR")
+    ax0.set_title("Bias vs SNR (error bars: SE of the mean)")
     ax0.legend(fontsize=9)
     ax0.grid(alpha=0.3, which="both")
 
     ax1 = fig.add_subplot(gs[0, 1])
-    ax1.loglog(snr, crlb, "-", color="black", lw=1.5, label="CRLB (theoretical floor)")
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    ax1.plot(snr, crlb, "-", color="black", lw=1.5, label="CRLB (theoretical floor)")
     for m in METHODS:
-        ax1.loglog(snr, std[m], MARKERS[m] + "-", color=COLORS[m], label=LABELS[m])
+        ax1.errorbar(snr, std[m], yerr=std_se[m], fmt=MARKERS[m] + "-", color=COLORS[m], label=LABELS[m], capsize=3, elinewidth=1)
     ax1.set_xlabel("SNR")
     ax1.set_ylabel("std (px)")
-    ax1.set_title("Precision (std) vs SNR, against the CRLB")
+    ax1.set_title("Precision (std) vs SNR, against the CRLB (error bars: SE of std)")
     ax1.legend(fontsize=9)
     ax1.grid(alpha=0.3, which="both")
 

@@ -1690,5 +1690,44 @@ already identified qualitatively back in §2d.
 
 ---
 
+## §6 self-check: two real gaps found and fixed
+
+§6 is explicitly a self-audit against the brief's own "what a strong
+submission shows" criteria, not a new build — so this section records
+what the audit actually found, not just that it happened.
+
+**Gap 1: the most important figure in the whole project had no error
+bars.** A direct check (not an assumption) of every experiment script
+found only one (`exp03d_hard_scenario.py`) used real matplotlib
+`errorbar()` calls. `exp01_snr_characterization.py` — the core §2c
+comparison of all three estimators against the CRLB, backed by 300
+trials per point — plotted bias and std as bare curves with no visual
+uncertainty at all, despite the underlying data fully supporting it.
+Fixed by adding SE-of-the-mean error bars to the bias panel and
+SE-of-std error bars to the precision panel, reusing the exact same
+statistical reasoning (`std/sqrt(2n)` for a sample std's own standard
+error) already used in that module's own docstring to justify
+`n_trials=300` — turning existing PROSE reasoning into actual plotted
+error bars, not a new derivation.
+
+**Gap 2: no top-level README existed at all.** Checking the repo root
+directly found no entry point whatsoever for someone landing on this
+project cold — everything useful was scattered across `docs/PROGRESS.md`,
+`docs/ASSUMPTIONS.md`, and 16 independently-runnable experiment scripts
+with no single document tying them together. Fixed by writing
+`README.md` covering what/why/how-to-reproduce/what's-tested/where-it-
+breaks/what's-next, including an honest "where it breaks" section
+pulling together the real failure modes already found and documented
+throughout §3-§5 (not a fresh list — every item there links back to the
+experiment that actually found it).
+
+The other three §6 criteria (methods compared to theory, clear noise/
+bias/limits reasoning, honesty about assumptions and failure modes) were
+already satisfied by work already done throughout this project and are
+marked DONE without new build work, same reasoning as the precision-limit
+item in §5.
+
+---
+
 *(This document will grow as each new part of the simulator — dynamic
 tracking, real-world conditions, etc. — introduces its own assumptions.)*

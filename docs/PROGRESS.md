@@ -95,11 +95,11 @@ Status legend: `NOT STARTED` / `IN PROGRESS` / `DONE`
 
 | Requirement | Status | Verified by |
 |---|---|---|
-| Results quantified with error bars, not asserted | NOT STARTED | |
-| Methods compared to each other AND theory | NOT STARTED | |
-| Clear reasoning about noise/bias/limits | NOT STARTED | |
-| Documentation another engineer could pick up | NOT STARTED | |
-| Honest about assumptions and failure modes | NOT STARTED | |
+| Results quantified with error bars, not asserted | DONE | Audited directly: only `exp03d_hard_scenario.py` had real matplotlib error bars; the single most important comparison figure, `exp01_snr_characterization.py`, plotted bias/std as bare curves with no visual uncertainty despite being backed by 300-trial Monte Carlo data. Fixed: added SE-of-the-mean error bars to the bias panel and SE-of-std error bars to the precision panel (both derived from the same trial-count reasoning already used to justify n_trials=300 in that module's own docstring — reused as actual plotted error bars, not just prose). Every other Monte Carlo result reports its own trial count and std/bias in its saved JSON, so uncertainty is always recoverable even where not every figure plots it visually |
+| Methods compared to each other AND theory | DONE | Every characterization experiment (§2c, §3, §5) compares the 3 estimators against each other AND against the CRLB theoretical floor (`sptrack/crlb.py`) — not just measured against one reference |
+| Clear reasoning about noise/bias/limits | DONE | `docs/ASSUMPTIONS.md` (1300+ lines) — every module's own docstring plus a dedicated assumptions log covering every deliberate choice, its reasoning, and every bug found while building it |
+| Documentation another engineer could pick up | DONE | `README.md` added (was missing entirely until this self-check caught it) — what/why/how-to-reproduce/what's-tested/where-it-breaks/what's-next, plus a repo map pointing to `docs/PROGRESS.md`, `docs/ASSUMPTIONS.md`, `docs/REAL_WORLD_CONDITIONS.md` |
+| Honest about assumptions and failure modes | DONE | `docs/ASSUMPTIONS.md` and `docs/REAL_WORLD_CONDITIONS.md` document real bugs, wrong turns, and dead ends throughout (e.g. the calibration section's 3 caught bugs, the motion-blur velocity research dead end, the FIXED_GAIN_TUNED_FLUX correction) — not just successes |
 
 ## 7. Deliverables
 
