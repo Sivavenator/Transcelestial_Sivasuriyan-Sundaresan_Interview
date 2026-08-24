@@ -117,11 +117,23 @@ DEFAULT PARAMETERS, AND WHY EACH ONE WAS CHOSEN
       project's own measured precision, not a scale picked in isolation.
 
   disturb_freq_hz = 20.0, disturb_amp_px = 0.3
-      A representative small-fan/motor tone (tens of Hz is a realistic
-      range for small cooling fans and motor cogging), comfortably below
-      the 500 Hz Nyquist limit at 1 kHz sampling, and easily resolved at
-      4096 frames (bin ~82 of ~2048, far from both DC and the Nyquist
-      edge). Amplitude comparable to (double) the jitter std -- large
+      20 Hz is not a free choice. A rotating machine's fundamental
+      disturbance tone sits at its rotation rate, so 20 Hz corresponds to
+      20 * 60 = 1200 RPM. Published reaction-wheel characterisation puts
+      the fundamental harmonic of a spacecraft reaction wheel assembly
+      "typically between 15-40 Hz", with a representative assembly at
+      800 RPM (13.3 Hz) and operating speeds running up to roughly
+      6200 RPM. 1200 RPM / 20 Hz therefore lands inside the documented
+      fundamental band for exactly the class of mechanism the brief's own
+      context section names (platform vibration from onboard rotating
+      machinery), not merely inside the broad 0.1 Hz to 1 kHz
+      micro-vibration envelope.
+
+      It is also comfortably below the 500 Hz Nyquist limit at 1 kHz
+      sampling, and easily resolved at 4096 frames (bin ~82 of ~2048, far
+      from both DC and the Nyquist edge).
+
+      Amplitude 0.3 px is comparable to (double) the jitter std: large
       enough to be a real, recoverable signal for this FIRST, easy
       version of the scenario. The brief's explicit "make it hard"
       requirement (disturbance near the jitter floor, frequency near the
@@ -129,6 +141,10 @@ DEFAULT PARAMETERS, AND WHY EACH ONE WAS CHOSEN
       it is built as a separate, harder configuration once the easy case
       is proven to work correctly (see the dynamic-tracking experiment
       script).
+
+      Source: Characterization of reaction wheel micro-vibrations
+      (ISMA 2018); Reaction Wheel Disturbance Modeling, Jitter Analysis,
+      and Validation (NASA NTRS 20080039248).
 
   disturb_axis = "x"
       The disturbance is injected on one axis only, and y carries drift +

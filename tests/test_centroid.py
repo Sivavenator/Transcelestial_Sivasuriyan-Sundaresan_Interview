@@ -134,3 +134,53 @@ def test_border_median_background_ignores_a_bright_centre():
     window[4:7, 4:7] = 5000.0  # a bright "spot" in the middle
     bg = border_median_background(window, border_width=2)
     assert bg == pytest.approx(20.0)
+
+
+def test_clip_negative_introduces_phase_dependent_bias_that_no_clip_does_not():
+    """Regression guard for the pixel-locking result (exp06a).
+
+    Clipping negative background-subtracted pixels rectifies downward
+    noise excursions. When the spot sits off-centre inside its
+    integer-placed window, that residue is spatially lopsided and pulls
+    the weighted average toward the window centre, producing a bias that
+    varies with sub-pixel phase. Without clipping the same frames show no
+    such structure. Phase-dependent bias matters more than a constant
+    offset because it does not average away as the spot moves.
+    """
+    from sptrack.simulate import Simulator
+    from sptrack.snr import snr_to_flux
+
+    shape, half_width = (21, 21), 9
+    background_e, sigma_read_e = 30.0, 5.0
+    sim = Simulator(
+        shape=shape, background_e=background_e, sigma_read_e=sigma_read_e,
+        hot_fraction=0.0, prnu_sigma=0.0, gradient_frac=0.0, seed=4242,
+    )
+    flux = snr_to_flux(
+        100.0, sim.sigma, background_e,
+        sim.dark_rate_e_per_s * sim.exposure_s, sigma_read_e, sim.gain_e_per_dn,
+    )
+
+    phases = [0.0, 0.2, 0.4, 0.5, 0.7, 0.9]
+    clip_bias, noclip_bias = [], []
+    for p in phases:
+        x0, y0 = 10.0 + p, 10.0
+        a, b = [], []
+        for _ in range(200):
+            frame = sim.dn_to_electrons(sim.render(x0, y0, flux))
+            c = centroid_estimate(frame, half_width, prior=(x0, y0), clip_negative=True)
+            n = centroid_estimate(frame, half_width, prior=(x0, y0), clip_negative=False)
+            if c.ok:
+                a.append(c.x - x0)
+            if n.ok:
+                b.append(n.x - x0)
+        clip_bias.append(np.mean(a))
+        noclip_bias.append(np.mean(b))
+
+    clip_pp = max(clip_bias) - min(clip_bias)
+    noclip_pp = max(noclip_bias) - min(noclip_bias)
+
+    # clipping produces real phase structure, roughly 4 millipixels
+    assert clip_pp > 2e-3
+    # switching it off removes most of it on the identical noise realisations
+    assert noclip_pp < clip_pp / 2

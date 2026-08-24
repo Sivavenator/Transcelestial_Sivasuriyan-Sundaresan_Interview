@@ -45,15 +45,40 @@ flux's VARIANCE over time without silently changing its long-run average
 WHY sigma_ln = 0.4 AND tau_s = 5 ms
 ------------------------------------------
 No site-specific turbulence profile (Cn^2) is available for an actual
-Transcelestial deployment, so these are honestly stated assumptions, not
-derivations -- chosen to sit in the "moderate" range of scintillation
-indices commonly cited in the free-space-optical-communications
-literature for weak-to-moderate turbulence (roughly sigma_I^2 in
-0.1-1.0; sigma_ln=0.4 gives sigma_I^2 = exp(sigma_ln^2)-1 ~= 0.17, near
-the middle of that range), and a coherence time in the low-single-digit-
-millisecond range typical of horizontal terrestrial links. Both are
-exposed as parameters specifically so a real deployment's site survey
-data could replace them without changing this module's structure.
+Transcelestial deployment, so these cannot be derived. They are instead
+placed against published FSO measurements and checked to sit inside
+them, rather than picked freely:
+
+  sigma_ln = 0.4 gives a scintillation index
+  sigma_I^2 = exp(sigma_ln^2) - 1 = 0.174.
+  sigma_ln = 0.6 (used only for the stress case in
+  experiments/exp04a_scintillation.py) gives 0.433.
+
+  Published context: the log-normal model this module uses is the
+  standard one for WEAK turbulence, valid while the scintillation index
+  stays below about 0.75, and measured FSO link indices span roughly
+  0.083 (32 cm aperture) to 0.71 (5 cm aperture) depending on aperture
+  and geometry. Both values used here fall inside that measured span and
+  below the log-normal validity limit, so the model and the parameter
+  are consistent with each other.
+
+  tau_s = 5 ms sits inside the published coherence-time range for
+  atmospheric fading, described as "a few ms" up to "typically around
+  10 ms".
+
+Caveat on tau_s: 5 ms puts this process's spectral corner near
+1/(2*pi*tau) = 32 Hz, while some FSO sources describe scintillation's
+upper frequency limit as "hundreds of Hz". These are different
+quantities, the corner where power begins rolling off versus where it
+finally dies, so they do not conflict. tau_s is bounded by the published
+range, not pinned to a single measurement.
+
+Both are exposed as parameters specifically so a real deployment's site
+survey data could replace them without changing this module's structure.
+
+Sources: Free-space optical communication through atmospheric turbulence
+channels (Zhu and Kahn); Channel Measurement and Markov Modeling of an
+Urban Free-Space Optical Link (JOCN 4(10) 836).
 """
 
 from __future__ import annotations
